@@ -15,6 +15,6 @@ module.exports = {
     } catch (err) {
       console.error('[BOT] Komutlar kaydedilemedi:', err.message);
     }
-    client.user.setPresence({ status: 'online', activities: [{ name: 'destek talepleri', type: ActivityType.Watching }] });
+    client.user.setPresence({ status: 'online', activities: [{ name: '𝑫𝒆𝒖𝒔𝒍𝒓𝒂', type: ActivityType.Watching }] });
   },
 };

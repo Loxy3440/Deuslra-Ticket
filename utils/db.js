@@ -17,7 +17,8 @@ const cache = new Map();
 const chains = new Map(); // anahtar başına yazma sırası (eski veri yeniyi ezmesin)
 
 async function init() {
-  const uri = process.env.MONGODB_URI;
+  // MONGODB_URI, MONGO_URI ve MONGO_URL adlarından hangisi yazıldıysa kabul edilir (tırnak/boşluk da temizlenir).
+  const uri = (process.env.MONGODB_URI || process.env.MONGO_URI || process.env.MONGO_URL || '').trim().replace(/^['"]|['"]$/g, '');
   if (!uri) { mode = 'file'; return mode; }
   const { MongoClient } = require('mongodb');
   client = new MongoClient(uri, { serverSelectionTimeoutMS: 15000 });
