@@ -59,7 +59,13 @@ function defaultConfig() {
 const str = (v, max) => String(v ?? '').replace(/\r/g, '').trim().slice(0, max);
 const cleanId = v => { const s = String(v ?? '').trim(); return /^\d{15,25}$/.test(s) ? s : ''; };
 const cleanColor = v => (/^#[0-9a-f]{6}$/i.test(String(v ?? '').trim()) ? String(v).trim() : '#8B5CF6');
-const cleanUrl = v => { const s = String(v ?? '').trim(); return /^https?:\/\/\S{1,500}$/i.test(s) ? s : ''; };
+// Görsel adresi: boşsa boş kalır; doluysa geçerli bir http(s) adresi olmalı. Sessizce silmek yerine hata verir ki kullanıcı fark etsin.
+const cleanUrl = (v, label = 'Görsel') => {
+  const s = String(v ?? '').trim();
+  if (!s) return '';
+  if (!/^https?:\/\/\S{1,2000}$/i.test(s)) throw new ConfigError(`${label} adresi geçersiz: http:// veya https:// ile başlamalı, boşluk içermemeli ve 2000 karakteri geçmemeli.`);
+  return s;
+};
 const clampInt = (v, min, max, def) => { const n = Number.parseInt(v, 10); return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def; };
 const bool = (v, def) => (typeof v === 'boolean' ? v : def);
 
@@ -128,8 +134,8 @@ function normalizeConfig(input) {
       description: str(p.description, 4000),
       footer: str(p.footer, 200),
       color: cleanColor(p.color),
-      imageUrl: cleanUrl(p.imageUrl),
-      thumbnailUrl: cleanUrl(p.thumbnailUrl),
+      imageUrl: cleanUrl(p.imageUrl, 'Büyük görsel'),
+      thumbnailUrl: cleanUrl(p.thumbnailUrl, 'Küçük görsel'),
     },
     ticketCategoryId: cleanId(c.ticketCategoryId),
     logChannelId: cleanId(c.logChannelId),

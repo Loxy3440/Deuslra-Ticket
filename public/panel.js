@@ -54,7 +54,10 @@ function ago(ms) {
 
 async function save() {
   const r = await api('admin/config', cfg);
-  cfg = r.config; isDirty = false;
+  // ÖNEMLİ: cfg nesnesini değiştirme! Form kutuları bu nesnelere bağlı; değiştirirsen sonraki düzenlemeler
+  // eski nesneye yazılır ve ikinci "Kaydet" hiçbir şey kaydetmez (Ctrl+R gerekirdi). Sadece sunucunun ürettiği id'leri işle.
+  r.config.buttons.forEach((sb, i) => { if (cfg.buttons[i]) cfg.buttons[i].id = sb.id; });
+  isDirty = false;
   if (saveInfo) saveInfo.textContent = 'Tüm ayarlar kayıtlı';
   refreshPreview();
   return r;
@@ -245,7 +248,7 @@ function appearancePane() {
         h('div', { class: 'grid2' },
           field('Renk', color),
           field('Küçük görsel URL', text(p, 'thumbnailUrl', { type: 'url', ph: 'https://…' }))),
-        field('Büyük görsel URL', text(p, 'imageUrl', { type: 'url', ph: 'https://…' }))),
+        field('Büyük görsel / GIF URL', text(p, 'imageUrl', { type: 'url', ph: 'https://…/resim.gif' }), 'GIF için doğrudan dosya adresi lazım (.gif ile biten; Tenor/Giphy sayfa linki çalışmaz: GIF\'e sağ tık > Görsel adresini kopyala). Discord\'a yüklediğin dosyanın linki bir süre sonra bozulur; imgur veya media.tenor.com gibi kalıcı bir adres kullan.')),
       h('div', { class: 'card' }, h('h2', {}, 'Ticket içi butonlar'),
         h('p', { class: 'hint', style: 'margin-bottom:12px' }, 'Ticket kanalında görünen üç buton.'),
         ...['close', 'claim', 'callStaff'].map(k => h('div', { class: 'grid2' },
