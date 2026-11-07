@@ -1,7 +1,7 @@
 /* Deuslra Destek · yönetim paneli (framework yok, saf JS) */
 const root = document.getElementById('root');
 let cfg = null, meta = { connected: false, channels: [], categories: [], roles: [] };
-let isDirty = false, previewEl = null, saveInfo = null, timer = null, refreshDiag = () => {};
+let isDirty = false, previewEl = null, ticketPreviewEl = null, saveInfo = null, timer = null, refreshDiag = () => {};
 
 function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
@@ -57,6 +57,13 @@ async function save() {
   // ÖNEMLİ: cfg nesnesini değiştirme! Form kutuları bu nesnelere bağlı; değiştirirsen sonraki düzenlemeler
   // eski nesneye yazılır ve ikinci "Kaydet" hiçbir şey kaydetmez (Ctrl+R gerekirdi). Sadece sunucunun ürettiği id'leri işle.
   r.config.buttons.forEach((sb, i) => { if (cfg.buttons[i]) cfg.buttons[i].id = sb.id; });
+  // Sunucu Tenor/Giphy sayfa linklerini doğrudan GIF adresine çevirmiş olabilir: kutuda göster.
+  let fixed = false;
+  for (const [obj, key, k] of [[cfg.panel, 'imageUrl', 'panel.imageUrl'], [cfg.panel, 'thumbnailUrl', 'panel.thumbnailUrl'], [cfg.ticketEmbed, 'imageUrl', 'ticketEmbed.imageUrl'], [cfg.ticketEmbed, 'thumbnailUrl', 'ticketEmbed.thumbnailUrl']]) {
+    const saved = k.split('.').reduce((o, x) => o[x], r.config);
+    if (saved !== obj[key]) { obj[key] = saved; fixed = true; const inp = document.querySelector(`[data-k="${k}"]`); if (inp) inp.value = saved; }
+  }
+  if (fixed) r.message = 'Ayarlar kaydedildi. GIF/görsel adresi otomatik doğrudan dosya adresine çevrildi.';
   isDirty = false;
   if (saveInfo) saveInfo.textContent = 'Tüm ayarlar kayıtlı';
   refreshPreview();
@@ -77,6 +84,7 @@ function text(obj, key, o = {}) {
   const el = o.multi ? h('textarea', { rows: o.rows || 3 }) : h('input', { type: o.type || 'text' });
   el.value = obj[key] ?? ''; el.placeholder = o.ph || '';
   if (o.max) el.maxLength = o.max;
+  if (o.k) el.dataset.k = o.k;
   el.addEventListener('input', () => { obj[key] = el.value; dirty(); refreshPreview(); });
   return el;
 }
@@ -87,7 +95,7 @@ function num(obj, key, min, max) {
 }
 function check(obj, key, label) {
   const el = h('input', { type: 'checkbox', checked: obj[key] });
-  el.addEventListener('change', () => { obj[key] = el.checked; dirty(); });
+  el.addEventListener('change', () => { obj[key] = el.checked; dirty(); refreshPreview(); });
   return h('label', { class: 'chk' }, el, label);
 }
 // Sunucudaki kanal/kategori/rol listesinden seçtiren açılır liste
@@ -117,6 +125,21 @@ function refreshPreview() {
       (p.title || p.description || p.footer) && emb,
       p.style !== 'dropdown' && h('div', { class: 'bt' }, cfg.buttons.map(b => h('span', { class: b.color }, `${b.emoji ? b.emoji + ' ' : ''}${b.label}`))),
       p.style !== 'buttons' && h('div', { class: 'sel' }, h('span', {}, p.placeholder || 'Bir kategori seç…'), h('span', {}, '⌄'))));
+  refreshTicketPreview();
+}
+
+function refreshTicketPreview() {
+  if (!ticketPreviewEl) return;
+  const te = cfg.ticketEmbed, st = cfg.settings;
+  const fill = t => String(t || '').replace(/\{user\}/gi, '@kullanıcı').replace(/\{category\}/gi, cfg.buttons[0]?.label || 'Kategori').replace(/\{number\}/gi, '0001');
+  const emb = h('div', { class: 'emb' });
+  emb.style.borderLeftColor = te.color || '#8B5CF6';
+  emb.append(h('div', { class: 't' }, fill(te.title) || 'Ticket #0001'), h('div', { class: 'd' }, fill(st.welcomeMessage)));
+  if (te.showDetails) emb.append(h('div', { class: 'd', style: 'display:flex;gap:18px;font-size:12px' }, h('span', {}, 'Açan\n@kullanıcı'), h('span', {}, `Kategori\n${cfg.buttons[0]?.label || ''}`), h('span', {}, 'Açılış\nşimdi')));
+  if (/^https?:\/\//.test(te.imageUrl)) emb.append(h('img', { src: te.imageUrl, alt: '' }));
+  emb.append(h('div', { class: 'f' }, te.footer || cfg.brandName));
+  ticketPreviewEl.replaceChildren(h('div', { class: 'dc' }, emb,
+    h('div', { class: 'bt' }, ['close', 'claim', 'callStaff'].map(k => h('span', { class: cfg.actions[k].color }, `${cfg.actions[k].emoji ? cfg.actions[k].emoji + ' ' : ''}${cfg.actions[k].label}`)))));
 }
 
 /* ---------- kurulum kontrol listesi ---------- */
@@ -212,7 +235,7 @@ function generalPane() {
       h('div', { class: 'grid2' },
         field('Kişi başı en fazla açık ticket', num(s, 'maxOpenPerUser', 1, 5)),
         field('Silmeden önce bekleme (sn)', num(s, 'deleteDelaySeconds', 0, 60), 'Silme komutundan sonra kanal bu kadar sonra kaybolur.')),
-      field('Karşılama mesajı', text(s, 'welcomeMessage', { multi: true, max: 500 }), '{user} {category} {number} yazabilirsin.'),
+      h('p', { class: 'hint' }, 'Talep açılınca çıkan mesajı Panel görünümü sekmesinden düzenleyebilirsin.'),
       check(s, 'pingSupportOnOpen', 'Ticket açılınca destek rollerini etiketle'),
       check(s, 'transcript', 'Kapatma ve silmede transcript (HTML kayıt) oluştur'),
       check(s, 'dmOnClose', 'Ticket kapanınca kullanıcıya DM gönder'),
@@ -222,10 +245,12 @@ function generalPane() {
 }
 
 function appearancePane() {
-  previewEl = h('div', {});
+  previewEl = h('div', {}); ticketPreviewEl = h('div', {});
   const p = cfg.panel;
   const color = h('input', { type: 'color', value: p.color }); color.addEventListener('input', () => { p.color = color.value; dirty(); refreshPreview(); });
   const styles = [['buttons', 'Butonlar'], ['dropdown', 'Açılır liste'], ['both', 'İkisi birden']];
+  const tcolor = h('input', { type: 'color', value: cfg.ticketEmbed.color }); tcolor.addEventListener('input', () => { cfg.ticketEmbed.color = tcolor.value; dirty(); refreshPreview(); });
+  const colorSel = obj => { const sel = h('select', {}, ['primary', 'secondary', 'success', 'danger'].map(c => h('option', { value: c }, { primary: 'Mavi', secondary: 'Gri', success: 'Yeşil', danger: 'Kırmızı' }[c]))); sel.value = obj.color; sel.addEventListener('change', () => { obj.color = sel.value; dirty(); refreshPreview(); }); return sel; };
   const seg = h('div', { class: 'seg' });
   const drawSeg = () => seg.replaceChildren(...styles.map(([v, l]) => h('button', {
     class: p.style === v ? 'on' : '', onclick: () => {
@@ -247,14 +272,27 @@ function appearancePane() {
         field('Alt yazı', text(p, 'footer', { max: 200 })),
         h('div', { class: 'grid2' },
           field('Renk', color),
-          field('Küçük görsel URL', text(p, 'thumbnailUrl', { type: 'url', ph: 'https://…' }))),
-        field('Büyük görsel / GIF URL', text(p, 'imageUrl', { type: 'url', ph: 'https://…/resim.gif' }), 'GIF için doğrudan dosya adresi lazım (.gif ile biten; Tenor/Giphy sayfa linki çalışmaz: GIF\'e sağ tık > Görsel adresini kopyala). Discord\'a yüklediğin dosyanın linki bir süre sonra bozulur; imgur veya media.tenor.com gibi kalıcı bir adres kullan.')),
-      h('div', { class: 'card' }, h('h2', {}, 'Ticket içi butonlar'),
-        h('p', { class: 'hint', style: 'margin-bottom:12px' }, 'Ticket kanalında görünen üç buton.'),
-        ...['close', 'claim', 'callStaff'].map(k => h('div', { class: 'grid2' },
-          field({ close: 'Kapat · ad', claim: 'Üstlen · ad', callStaff: 'Ekibi çağır · ad' }[k], text(cfg.actions[k], 'label', { max: 80 })),
-          field('Emoji', text(cfg.actions[k], 'emoji', { max: 64 })))))),
-    h('div', { class: 'preview' }, h('div', { class: 'card' }, h('div', { class: 'eyebrow' }, 'Discord önizleme'), previewEl))));
+          field('Küçük görsel URL', text(p, 'thumbnailUrl', { type: 'url', ph: 'https://…', k: 'panel.thumbnailUrl' }))),
+        field('Büyük görsel / GIF URL', text(p, 'imageUrl', { type: 'url', ph: 'https://…/resim.gif', k: 'panel.imageUrl' }), 'Doğrudan .gif adresi koy. Tenor veya Giphy sayfa linki yapıştırırsan kaydederken otomatik GIF adresine çevrilir. Discord\'a yüklediğin dosyanın linki bir süre sonra bozulur; imgur gibi kalıcı bir adres daha güvenli.')),
+      h('div', { class: 'card' }, h('h2', {}, 'Talep açılınca görünen mesaj'),
+        h('p', { class: 'hint', style: 'margin-bottom:12px' }, 'Kullanıcı ticket açınca kanalda çıkan karşılama mesajı.'),
+        field('Başlık', text(cfg.ticketEmbed, 'title', { max: 256 }), '{number} {category} {user} yazabilirsin.'),
+        field('Karşılama yazısı', text(cfg.settings, 'welcomeMessage', { multi: true, max: 500 }), '{user} {category} {number} yazabilirsin.'),
+        field('Alt yazı', text(cfg.ticketEmbed, 'footer', { max: 200 }), 'Boşsa marka adı yazılır.'),
+        h('div', { class: 'grid2' },
+          field('Renk', tcolor),
+          field('Küçük görsel URL', text(cfg.ticketEmbed, 'thumbnailUrl', { type: 'url', ph: 'https://…', k: 'ticketEmbed.thumbnailUrl' }))),
+        field('Büyük görsel / GIF URL', text(cfg.ticketEmbed, 'imageUrl', { type: 'url', ph: 'https://…/resim.gif', k: 'ticketEmbed.imageUrl' }), 'Doğrudan .gif adresi koy. Tenor veya Giphy sayfa linki yapıştırırsan kaydederken otomatik GIF adresine çevrilir. Discord\'a yüklediğin dosyanın linki bir süre sonra bozulur; imgur gibi kalıcı bir adres daha güvenli.'),
+        check(cfg.ticketEmbed, 'showDetails', 'Açan / Kategori / Açılış bilgi satırını göster')),
+      h('div', { class: 'card' }, h('h2', {}, 'Talep içindeki butonlar'),
+        h('p', { class: 'hint', style: 'margin-bottom:12px' }, 'Bekleme süresi: biri butona bastıktan sonra süre dolana kadar o ticketta butona kimse tekrar basamaz. 0 = sınırsız. Örnek: "Ekibi çağır" için 300 saniye yazarsan ekip sürekli etiketlenemez.'),
+        ...['close', 'claim', 'callStaff'].map(k => h('div', { class: 'bcard' },
+          h('div', { class: 'grid2' },
+            field({ close: 'Kapat · ad', claim: 'Üstlen · ad', callStaff: 'Ekibi çağır · ad' }[k], text(cfg.actions[k], 'label', { max: 80 })),
+            field('Emoji', text(cfg.actions[k], 'emoji', { max: 64 })),
+            field('Renk', colorSel(cfg.actions[k])),
+            field('Bekleme süresi (saniye)', num(cfg.actions[k], 'cooldownSeconds', 0, 86400))))))),
+    h('div', { class: 'preview' }, h('div', { class: 'card' }, h('div', { class: 'eyebrow' }, 'Panel mesajı önizleme'), previewEl), h('div', { class: 'card' }, h('div', { class: 'eyebrow' }, 'Talep açılınca önizleme'), ticketPreviewEl))));
   refreshPreview();
   return pane;
 }

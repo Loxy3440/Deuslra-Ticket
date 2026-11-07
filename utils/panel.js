@@ -80,7 +80,7 @@ function buildOpenTicketRow(config) {
   const row = new ActionRowBuilder();
   for (const [id, action, style] of defs) {
     row.addComponents(withEmoji(
-      new ButtonBuilder().setCustomId(`ticket-action:${id}`).setLabel((action?.label || id).slice(0, 80)).setStyle(style),
+      new ButtonBuilder().setCustomId(`ticket-action:${id}`).setLabel((action?.label || id).slice(0, 80)).setStyle(STYLES[action?.color] ?? style),
       action?.emoji,
     ));
   }

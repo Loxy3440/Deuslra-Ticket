@@ -54,6 +54,23 @@ function cooldownLeftMs(interaction, config, button) {
   return Math.max(0, last + seconds * 1000 - Date.now());
 }
 
+// Talep içindeki butonların bekleme süresi (kanal başına): bir kez basılınca süre dolana kadar o ticketta kimse tekrar basamaz.
+const actionUse = new Map();
+const unixNow = () => Math.floor(Date.now() / 1000);
+function actionWaitMs(channelId, config, key) {
+  const sec = Number(config.actions?.[key]?.cooldownSeconds) || 0;
+  if (!sec) return 0;
+  return Math.max(0, (actionUse.get(`${channelId}:${key}`) || 0) + sec * 1000 - Date.now());
+}
+const markAction = (channelId, key) => actionUse.set(`${channelId}:${key}`, Date.now());
+// true dönerse süre dolmamıştır ve kullanıcıya söylenmiştir.
+async function gateAction(interaction, config, key) {
+  const wait = actionWaitMs(interaction.channelId, config, key);
+  if (wait <= 0) return false;
+  await replyPrivate(interaction, `Bu butonu tekrar kullanmak için biraz beklemelisin: <t:${unixNow() + Math.ceil(wait / 1000)}:R>`);
+  return true;
+}
+
 async function textChannel(guild, id) {
   if (!id) return null;
   const ch = guild.channels.cache.get(id) ?? await guild.channels.fetch(id).catch(() => null);
@@ -114,16 +131,22 @@ async function openTicket({ guild, user, config, button, answers = [] }) {
     .replace(/\{user\}/gi, `<@${user.id}>`)
     .replace(/\{category\}/gi, button.label)
     .replace(/\{number\}/gi, pad(number));
+  const te = config.ticketEmbed;
+  const fill = text => String(text || '').replace(/\{user\}/gi, `<@${user.id}>`).replace(/\{category\}/gi, button.label).replace(/\{number\}/gi, pad(number));
   const embed = new EmbedBuilder()
-    .setColor(COLORS.main)
-    .setTitle(`Ticket #${pad(number)} · ${button.label}`)
+    .setColor(te.color || COLORS.main)
+    .setTitle(fill(te.title).slice(0, 256) || `Ticket #${pad(number)}`)
     .setDescription(welcome)
-    .addFields(
+    .setFooter({ text: te.footer || config.brandName });
+  if (te.showDetails) {
+    embed.addFields(
       { name: 'Açan', value: `<@${user.id}>`, inline: true },
       { name: 'Kategori', value: button.label, inline: true },
       { name: 'Açılış', value: `<t:${unix(Date.now())}:R>`, inline: true },
-    )
-    .setFooter({ text: config.brandName });
+    );
+  }
+  if (te.imageUrl) embed.setImage(te.imageUrl);
+  if (te.thumbnailUrl) embed.setThumbnail(te.thumbnailUrl);
   const answerFields = answers.filter(a => a.value).slice(0, 5).map(a => ({ name: a.label.slice(0, 256), value: a.value.slice(0, 1000) }));
   const embeds = [embed];
   if (answerFields.length) embeds.push(new EmbedBuilder().setColor(COLORS.main).setTitle('Form yanıtları').addFields(answerFields));
@@ -361,6 +384,8 @@ async function handleDelete(interaction, config, reason = '') {
 
 async function handleClaim(interaction, config) {
   if (!await guard(interaction, config, { staff: true, status: 'open' })) return;
+  if (await gateAction(interaction, config, 'claim')) return;
+  markAction(interaction.channelId, 'claim');
   await interaction.deferReply({ ephemeral: true });
   const res = await claimTicket({ channel: interaction.channel, config, actor: actorOf(interaction) });
   return replyPrivate(interaction, res.error || 'Ticket\'ı üstlendin.');
@@ -369,8 +394,10 @@ async function handleClaim(interaction, config) {
 async function handleCallStaff(interaction, config) {
   const t = await guard(interaction, config, { ownerOrStaff: true, status: 'open' });
   if (!t) return;
+  if (await gateAction(interaction, config, 'callStaff')) return;
   const roleIds = config.supportRoleIds.filter(id => interaction.guild.roles.cache.has(id));
   if (!roleIds.length) return replyPrivate(interaction, 'Panelde destek yetkili rolü ayarlanmamış.');
+  markAction(interaction.channelId, 'callStaff');
   await interaction.channel.send({
     content: `📣 Yetkili çağrısı: ${roleIds.map(id => `<@&${id}>`).join(' ')}`,
     allowedMentions: { roles: roleIds },
@@ -399,7 +426,7 @@ async function handleRemoveUser(interaction, config, user) {
 module.exports = {
   PANEL_ACTOR, pad,
   openTicket, closeTicket, reopenTicket, deleteTicket, claimTicket,
-  buildCloseModal,
+  buildCloseModal, gateAction, markAction,
   handleOpenButton, handleFormSubmit, handleClose, handleReopen, handleDeleteRequest, handleDelete,
   handleClaim, handleCallStaff, handleAddUser, handleRemoveUser,
 };

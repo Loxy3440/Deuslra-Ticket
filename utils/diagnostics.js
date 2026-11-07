@@ -101,7 +101,8 @@ async function runDiagnostics({ client, guild, config }) {
   }
 
   // Depolama: Render'da MongoDB olmadan ayarlar her yeniden başlatmada silinir
-  if (db.getMode() === 'mongo') checks.push(ok('storage', 'Veritabanı', 'MongoDB Atlas bağlı; ayarlar ve ticket kayıtları kalıcı.'));
+  if (db.getMode() === 'mongo' && db.getLastError()) checks.push(bad('storage', 'Veritabanı', `MongoDB'ye yazılamıyor: ${db.getLastError()}`, 'Atlas > Database Access: kullanıcıya "Read and write to any database" yetkisi ver.'));
+  else if (db.getMode() === 'mongo') checks.push(ok('storage', 'Veritabanı', 'MongoDB Atlas bağlı; ayarlar ve ticket kayıtları kalıcı.'));
   else if (process.env.RENDER) checks.push(bad('storage', 'Veritabanı', 'Render\'dasın ama MONGODB_URI tanımlı değil; ayarların her yeniden başlatmada silinir.', 'Render > Environment bölümüne MONGODB_URI ekle.'));
   else checks.push(warn('storage', 'Veritabanı', 'Yerel dosyalar kullanılıyor (bilgisayarında sorun değil).', 'Render\'a taşırken MONGODB_URI ekle.'));
 

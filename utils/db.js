@@ -11,6 +11,7 @@ const FILES = {
 };
 
 let mode = 'file';
+let lastError = '';
 let client = null;
 let coll = null;
 const cache = new Map();
@@ -25,6 +26,9 @@ async function init() {
   await client.connect();
   coll = client.db(process.env.MONGODB_DB || 'deuslra-destek').collection('kv');
   for (const doc of await coll.find({}).toArray()) cache.set(doc._id, doc.data);
+  // Yazma testi: kullanıcıya yazma izni yoksa ayarlar her deploy'da kaybolur; bunu başta yakalayalım.
+  try { await coll.replaceOne({ _id: '_health' }, { _id: '_health', at: new Date() }, { upsert: true }); }
+  catch (err) { throw new Error(`MongoDB'ye bağlanıldı ama YAZILAMIYOR (${err.message}). Atlas > Database Access'te kullanıcının "Read and write to any database" yetkisi olmalı.`); }
   mode = 'mongo';
   // İlk çalıştırmada projedeki yerel dosyalar veritabanına aktarılır (ayarların kaybolmasın).
   for (const [key, file] of Object.entries(FILES)) {
@@ -37,7 +41,8 @@ async function init() {
 
 function persist(key, data) {
   const run = () => coll.replaceOne({ _id: key }, { _id: key, data, updatedAt: new Date() }, { upsert: true })
-    .catch(err => console.error(`[DB] "${key}" kaydedilemedi:`, err.message));
+    .then(() => { lastError = ''; })
+    .catch(err => { lastError = err.message; console.error(`[DB] "${key}" kaydedilemedi:`, err.message); });
   const next = (chains.get(key) || Promise.resolve()).then(run);
   chains.set(key, next);
   return next;
@@ -59,4 +64,5 @@ async function close() {
 }
 
 const getMode = () => mode;
-module.exports = { init, get, set, close, getMode };
+const getLastError = () => lastError;
+module.exports = { init, get, set, close, getMode, getLastError };

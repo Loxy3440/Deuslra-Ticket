@@ -10,6 +10,8 @@ async function handleButton(interaction, config) {
   switch (id) {
     case 'ticket-action:close': {
       // kapatma sebebi almak için önce modal göster (yetki modal gönderilince tekrar kontrol edilir)
+      if (await t.gateAction(interaction, config, 'close')) return undefined;
+      t.markAction(interaction.channelId, 'close');
       return interaction.showModal(t.buildCloseModal());
     }
     case 'ticket-action:claim': return t.handleClaim(interaction, config);

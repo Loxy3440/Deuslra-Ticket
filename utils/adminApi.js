@@ -4,6 +4,7 @@ const store = require('./store');
 const tickets = require('./tickets');
 const { publishPanel } = require('./panel');
 const { runDiagnostics } = require('./diagnostics');
+const { resolveMediaUrl } = require('./media');
 
 class ApiError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -69,7 +70,19 @@ const handlers = {
   'GET config': async () => readConfig(),
 
   'POST config': async (client, body) => {
-    try { return { ok: true, config: writeConfig(body), message: 'Ayarlar kaydedildi.' }; }
+    try {
+      // Tenor/Giphy sayfa linklerini doğrudan GIF adresine çevir
+      const data = body && typeof body === 'object' ? body : {};
+      if (data.panel) {
+        data.panel.imageUrl = await resolveMediaUrl(data.panel.imageUrl, 'Büyük görsel');
+        data.panel.thumbnailUrl = await resolveMediaUrl(data.panel.thumbnailUrl, 'Küçük görsel');
+      }
+      if (data.ticketEmbed) {
+        data.ticketEmbed.imageUrl = await resolveMediaUrl(data.ticketEmbed.imageUrl, 'Talep içi büyük görsel');
+        data.ticketEmbed.thumbnailUrl = await resolveMediaUrl(data.ticketEmbed.thumbnailUrl, 'Talep içi küçük görsel');
+      }
+      return { ok: true, config: writeConfig(data), message: 'Ayarlar kaydedildi.' };
+    }
     catch (err) { if (err instanceof ConfigError) throw new ApiError(400, err.message); throw err; }
   },
 

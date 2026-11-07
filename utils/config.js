@@ -39,10 +39,11 @@ function defaultConfig() {
         formFields: [{ label: 'Konu', placeholder: 'Sana nasıl yardımcı olabiliriz?', required: true }],
       },
     ],
+    ticketEmbed: { title: 'Ticket #{number} · {category}', color: '#8B5CF6', footer: '', imageUrl: '', thumbnailUrl: '', showDetails: true },
     actions: {
-      close: { label: 'Talebi kapat', emoji: '🔒' },
-      claim: { label: 'Üzerime al', emoji: '🙋' },
-      callStaff: { label: 'Ekibi çağır', emoji: '📣' },
+      close: { label: 'Talebi kapat', emoji: '🔒', color: 'danger', cooldownSeconds: 0 },
+      claim: { label: 'Üzerime al', emoji: '🙋', color: 'success', cooldownSeconds: 0 },
+      callStaff: { label: 'Ekibi çağır', emoji: '📣', color: 'secondary', cooldownSeconds: 0 },
     },
     settings: {
       maxOpenPerUser: 1,
@@ -82,10 +83,13 @@ function normalizeConfig(input) {
   const p = c.panel && typeof c.panel === 'object' ? c.panel : {};
   const s = c.settings && typeof c.settings === 'object' ? c.settings : {};
   const a = c.actions && typeof c.actions === 'object' ? c.actions : {};
+  const te = c.ticketEmbed && typeof c.ticketEmbed === 'object' ? c.ticketEmbed : {};
 
   const action = key => ({
     label: str(a[key]?.label, 80) || d.actions[key].label,
     emoji: str(a[key]?.emoji ?? d.actions[key].emoji, 64),
+    color: BUTTON_COLORS.includes(a[key]?.color) ? a[key].color : d.actions[key].color,
+    cooldownSeconds: clampInt(a[key]?.cooldownSeconds, 0, 86400, 0),
   });
 
   const used = new Set();
@@ -141,6 +145,14 @@ function normalizeConfig(input) {
     logChannelId: cleanId(c.logChannelId),
     supportRoleIds: [...new Set((Array.isArray(c.supportRoleIds) ? c.supportRoleIds : []).map(cleanId).filter(Boolean))].slice(0, 10),
     buttons,
+    ticketEmbed: {
+      title: str(te.title, 256) || d.ticketEmbed.title,
+      color: cleanColor(te.color ?? d.ticketEmbed.color),
+      footer: str(te.footer, 200),
+      imageUrl: cleanUrl(te.imageUrl, 'Talep içi büyük görsel'),
+      thumbnailUrl: cleanUrl(te.thumbnailUrl, 'Talep içi küçük görsel'),
+      showDetails: bool(te.showDetails, true),
+    },
     actions: { close: action('close'), claim: action('claim'), callStaff: action('callStaff') },
     settings: {
       maxOpenPerUser: clampInt(s.maxOpenPerUser, 1, 5, d.settings.maxOpenPerUser),
