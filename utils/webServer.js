@@ -147,7 +147,8 @@ function serveStatic(req, res, url) {
 
 function startWebServer(client) {
   const port = Number(process.env.PORT) || 3000;
-  const host = process.env.HOST || (onRender() ? '0.0.0.0' : '127.0.0.1');
+  // Render'da dışarıdan erişim için 0.0.0.0 şart; .env'den kopyalanan HOST=127.0.0.1 bile yok sayılır.
+  const host = onRender() ? '0.0.0.0' : (process.env.HOST || '127.0.0.1');
   const server = http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url, 'http://localhost');
@@ -165,7 +166,8 @@ function startWebServer(client) {
     else console.error('[WEB]', err);
   });
   server.listen(port, host, () => {
-    console.info(`[WEB] Site: http://localhost:${port}   Yönetim paneli: http://localhost:${port}/panel`);
+    const base = process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`;
+    console.info(`[WEB] Yayında (port ${port}) · Site: ${base} · Yönetim paneli: ${base}/panel`);
     if (!process.env.PANEL_PASSWORD) console.warn('[WEB] PANEL_PASSWORD tanımlı değil: yönetim paneli kapalı.');
     if (onRender() && process.env.PANEL_PASSWORD && process.env.PANEL_PASSWORD.length < 12) console.warn('[WEB] Panel internete açık: en az 12 karakterlik bir PANEL_PASSWORD kullan.');
   });
