@@ -178,3 +178,12 @@ td{padding:11px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
 .toast.err{background:var(--bad);color:#fff}
 .empty{padding:26px;text-align:center;color:var(--muted)}
 @media(max-width:980px){.shell{grid-template-columns:1fr}.side{position:static;flex-direction:row;flex-wrap:wrap}.split{grid-template-columns:1fr}.preview{position:static}.cards4{grid-template-columns:1fr 1fr}.grid2{grid-template-columns:1fr}.frow{grid-template-columns:1fr 1fr}}
+
+/* metin sekmeleri */
+.grp>summary{cursor:pointer;font-family:var(--display);font-size:18px;font-weight:700;list-style:none;padding:2px 0}
+.grp>summary::-webkit-details-marker{display:none}
+.grp>summary::before{content:'▸';display:inline-block;margin-right:10px;color:var(--accent);transition:transform .15s}
+.grp[open]>summary::before{transform:rotate(90deg)}
+.grp>.field:first-of-type{margin-top:14px}
+.txt-in{display:flex;gap:8px;align-items:flex-start}
+.txt-in textarea,.txt-in input{flex:1}

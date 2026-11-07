@@ -18,9 +18,9 @@
       <span id="brand">Deuslra Destek</span>
     </a>
     <nav class="links" aria-label="Sayfa bölümleri">
-      <a href="#kategoriler">Kategoriler</a>
-      <a href="#nasil">Nasıl çalışır</a>
-      <a href="#durum">Canlı durum</a>
+      <a href="#kategoriler" data-t="navCategories">Kategoriler</a>
+      <a href="#nasil" data-t="navHow">Nasıl çalışır</a>
+      <a href="#durum" data-t="navStatus">Canlı durum</a>
     </nav>
     <div class="nav-r">
       <span class="pill"><i class="dot" id="dot"></i><span id="status">Bağlanıyor…</span></span>
@@ -33,14 +33,14 @@
 <main>
   <section class="wrap hero">
     <div class="hero-copy">
-      <p class="eyebrow">Destek merkezi</p>
-      <h1>Sorunun ne olursa olsun, <span class="hl">doğru ekibe</span> tek seçimle ulaş.</h1>
-      <p class="lead">Discord'daki destek panelinden kategorini seç. Sana özel bir kanal açılır, yetkililer orada seninle ilgilenir.</p>
+      <p class="eyebrow" data-t="heroEyebrow">Destek merkezi</p>
+      <h1><span data-t="heroTitleStart">Sorunun ne olursa olsun,</span> <span class="hl" data-t="heroTitleHighlight">doğru ekibe</span> <span data-t="heroTitleEnd">tek seçimle ulaş.</span></h1>
+      <p class="lead" data-t="heroLead">Discord'daki destek panelinden kategorini seç. Sana özel bir kanal açılır, yetkililer orada seninle ilgilenir.</p>
       <div class="cta">
-        <a class="btn" id="cta" href="#nasil">Destek talebi aç</a>
-        <a class="btn ghost" href="#nasil">Nasıl çalışır?</a>
+        <a class="btn" id="cta" href="#nasil" data-t="ctaTextNoLink">Destek talebi aç</a>
+        <a class="btn ghost" href="#nasil" data-t="ctaSecondary">Nasıl çalışır?</a>
       </div>
-      <p class="live-line"><b id="open">–</b> <span>açık talep şu an ekibimizin elinde</span></p>
+      <p class="live-line"><b id="open">–</b> <span data-t="liveLine">açık talep şu an ekibimizin elinde</span></p>
     </div>
 
     <figure class="mock" aria-label="Discord destek paneli önizlemesi">
@@ -59,30 +59,30 @@
 
   <section class="wrap band" id="durum">
     <div class="band-grid">
-      <div class="num"><strong id="s-open">–</strong><span>Açık talep</span></div>
-      <div class="num"><strong id="s-closed">–</strong><span>Çözülen talep</span></div>
-      <div class="num"><strong id="s-total">–</strong><span>Toplam talep</span></div>
-      <div class="num"><strong id="s-members">–</strong><span>Sunucu üyesi</span></div>
+      <div class="num"><strong id="s-open">–</strong><span data-t="statOpen">Açık talep</span></div>
+      <div class="num"><strong id="s-closed">–</strong><span data-t="statClosed">Çözülen talep</span></div>
+      <div class="num"><strong id="s-total">–</strong><span data-t="statTotal">Toplam talep</span></div>
+      <div class="num"><strong id="s-members">–</strong><span data-t="statMembers">Sunucu üyesi</span></div>
     </div>
     <p class="band-note"><span id="gname">Sunucu</span> · bot gecikmesi <b id="s-ping">–</b> · çalışma süresi <b id="s-up">–</b> · her 5 saniyede güncellenir</p>
   </section>
 
   <section class="wrap sec" id="kategoriler">
-    <div class="sec-h"><p class="eyebrow">Kategoriler</p><h2>Ne konuda yardım istiyorsun?</h2></div>
+    <div class="sec-h"><p class="eyebrow" data-t="catsEyebrow">Kategoriler</p><h2 data-t="catsTitle">Ne konuda yardım istiyorsun?</h2></div>
     <div class="cats" id="cats"></div>
   </section>
 
   <section class="wrap sec" id="nasil">
-    <div class="sec-h"><p class="eyebrow">Nasıl çalışır</p><h2>Destek almak üç adım</h2></div>
+    <div class="sec-h"><p class="eyebrow" data-t="stepsEyebrow">Nasıl çalışır</p><h2 data-t="stepsTitle">Destek almak üç adım</h2></div>
     <ol class="steps">
-      <li><b>1</b><h3>Kategoriyi seç</h3><p>Discord'daki destek panelinden sorununa uygun butona tıkla ya da açılır listeden seç.</p></li>
-      <li><b>2</b><h3>Kısa formu doldur</h3><p>Bazı kategorilerde birkaç soru çıkar. Konunu anlat ki ekip baştan ne olduğunu bilsin.</p></li>
-      <li><b>3</b><h3>Özel kanalda çöz</h3><p>Sana özel açılan kanalda yetkililerle yazış. İş bitince talep kapanır, kaydı sana DM'den gelir.</p></li>
+      <li><b>1</b><h3 data-t="step1Title">Kategoriyi seç</h3><p data-t="step1Text">Discord'daki destek panelinden sorununa uygun butona tıkla ya da açılır listeden seç.</p></li>
+      <li><b>2</b><h3 data-t="step2Title">Kısa formu doldur</h3><p data-t="step2Text">Bazı kategorilerde birkaç soru çıkar. Konunu anlat ki ekip baştan ne olduğunu bilsin.</p></li>
+      <li><b>3</b><h3 data-t="step3Title">Özel kanalda çöz</h3><p data-t="step3Text">Sana özel açılan kanalda yetkililerle yazış. İş bitince talep kapanır, kaydı sana DM'den gelir.</p></li>
     </ol>
   </section>
 </main>
 
-<footer class="wrap foot"><span id="foot">Deuslra Destek</span><a href="/panel">Yönetim paneli</a></footer>
+<footer class="wrap foot"><span id="foot">Deuslra Destek</span><a href="/panel" data-t="footerAdmin">Yönetim paneli</a></footer>
 <script src="/home.js"></script>
 </body>
 </html>

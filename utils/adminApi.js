@@ -5,6 +5,7 @@ const tickets = require('./tickets');
 const { publishPanel } = require('./panel');
 const { runDiagnostics } = require('./diagnostics');
 const { resolveMediaUrl } = require('./media');
+const { MESSAGE_DEFS, SITE_DEFS } = require('./messages');
 
 class ApiError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -55,6 +56,7 @@ function publicStats(client) {
       style: cfg.panel.style, placeholder: cfg.panel.placeholder, title: cfg.panel.title,
       description: cfg.panel.description, color: cfg.panel.color, footer: cfg.panel.footer,
     },
+    site: cfg.site,
     categories: cfg.buttons.map(b => ({ id: b.id, label: b.label, emoji: b.emoji, description: b.description, color: b.color })),
   };
 }
@@ -85,6 +87,9 @@ const handlers = {
     }
     catch (err) { if (err instanceof ConfigError) throw new ApiError(400, err.message); throw err; }
   },
+
+  // Mesajlar ve site yazılarının listesi (panelde otomatik form olarak çizilir)
+  'GET schema': async () => ({ messages: MESSAGE_DEFS, site: SITE_DEFS }),
 
   'GET meta': async client => {
     const guild = client.isReady() ? getGuild(client) : null;

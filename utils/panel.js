@@ -4,6 +4,7 @@ const {
 const { readPanelState, writePanelState } = require('./config');
 const { missingPermissions, PANEL_CHANNEL_REQUIRED } = require('./permissions');
 const { attachmentFor } = require('./media');
+const { msg } = require('./messages');
 
 const STYLES = {
   primary: ButtonStyle.Primary,
@@ -92,10 +93,10 @@ function buildOpenTicketRow(config) {
 }
 
 // Kapatılmış ticket içindeki butonlar: yeniden aç / sil
-function buildClosedTicketRow() {
+function buildClosedTicketRow(config) {
   return new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('ticket-action:reopen').setLabel('Yeniden aç').setEmoji('🔓').setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId('ticket-action:delete').setLabel('Sil').setEmoji('🗑️').setStyle(ButtonStyle.Danger),
+    new ButtonBuilder().setCustomId('ticket-action:reopen').setLabel(msg(config, 'btnReopen').slice(0, 80)).setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('ticket-action:delete').setLabel(msg(config, 'btnDelete').slice(0, 80)).setStyle(ButtonStyle.Danger),
   );
 }
 

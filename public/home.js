@@ -37,6 +37,16 @@ function drawCats(list) {
   }
 }
 
+// Panelden değiştirilen site yazılarını yerleştirir (data-t="anahtar" olan her alan)
+function applyTexts(site, hasLink) {
+  if (!site) return;
+  document.querySelectorAll('[data-t]').forEach(el => {
+    const k = el.dataset.t;
+    if (k === 'ctaTextNoLink' && hasLink) return; // link varken ctaText kullanılır
+    if (site[k]) el.textContent = site[k];
+  });
+}
+
 let catKey = '';
 async function tick() {
   try {
@@ -56,7 +66,8 @@ async function tick() {
     $('s-total').textContent = nf(s.tickets.total);
     $('s-ping').textContent = s.ping == null ? '–' : `${s.ping} ms`;
     $('s-up').textContent = fmtUp(s.uptime);
-    if (s.panelUrl) { $('cta').href = s.panelUrl; $('cta').target = '_blank'; $('cta').rel = 'noopener'; $('cta').textContent = 'Discord\'da talep aç'; }
+    if (s.panelUrl) { $('cta').href = s.panelUrl; $('cta').target = '_blank'; $('cta').rel = 'noopener'; $('cta').textContent = (s.site && s.site.ctaText) || 'Discord\'da talep aç'; }
+    applyTexts(s.site, Boolean(s.panelUrl));
     const key = JSON.stringify([s.panel, s.categories]);
     if (key !== catKey) { catKey = key; drawMock(s); drawCats(s.categories); }
   } catch {

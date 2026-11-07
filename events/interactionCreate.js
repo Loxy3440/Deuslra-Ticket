@@ -3,18 +3,14 @@ const { readConfig } = require('../utils/config');
 const { replyPrivate } = require('../utils/replies');
 const { buildPanelPayload } = require('../utils/panel');
 const t = require('../utils/tickets');
+const { msg } = require('../utils/messages');
 
 async function handleButton(interaction, config) {
   const id = interaction.customId;
   if (id.startsWith('transcript-dl:')) return t.handleTranscriptDownload(interaction, config, id.slice('transcript-dl:'.length));
   if (id.startsWith('ticket-open:')) return t.handleOpenButton(interaction, config, id.slice('ticket-open:'.length));
   switch (id) {
-    case 'ticket-action:close': {
-      // kapatma sebebi almak için önce modal göster (yetki modal gönderilince tekrar kontrol edilir)
-      if (await t.gateAction(interaction, config, 'close')) return undefined;
-      t.markAction(interaction.channelId, 'close');
-      return interaction.showModal(t.buildCloseModal());
-    }
+    case 'ticket-action:close': return t.handleCloseButton(interaction, config);
     case 'ticket-action:claim': return t.handleClaim(interaction, config);
     case 'ticket-action:call-staff': return t.handleCallStaff(interaction, config);
     case 'ticket-action:reopen': return t.handleReopen(interaction, config);
@@ -54,7 +50,7 @@ module.exports = {
     } catch (err) {
       console.error('[INTERACTION]', err);
       if (interaction.isRepliable()) {
-        await replyPrivate(interaction, 'İşlem tamamlanamadı. Botun kanal izinlerini ve panel ayarlarını kontrol et.').catch(() => null);
+        await replyPrivate(interaction, msg(readConfig(), 'interactionError')).catch(() => null);
       }
     }
   },

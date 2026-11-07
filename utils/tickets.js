@@ -10,8 +10,8 @@ const { isStaff } = require('./permissions');
 const { buildOpenTicketRow, buildClosedTicketRow } = require('./panel');
 const { buildTranscript } = require('./transcript');
 const { replyPrivate } = require('./replies');
+const { msg } = require('./messages');
 
-const COLORS = { main: '#8B5CF6', green: '#22C55E', amber: '#F59E0B', red: '#EF4444' };
 const PANEL_ACTOR = { id: null, label: 'Web paneli', mention: '**Web paneli**' };
 
 const OPEN_PERMS = [
@@ -69,7 +69,7 @@ const markAction = (channelId, key) => actionUse.set(`${channelId}:${key}`, Date
 async function gateAction(interaction, config, key) {
   const wait = actionWaitMs(interaction.channelId, config, key);
   if (wait <= 0) return false;
-  await replyPrivate(interaction, `Bu butonu tekrar kullanmak için biraz beklemelisin: <t:${unixNow() + Math.ceil(wait / 1000)}:R>`);
+  await replyPrivate(interaction, msg(config, 'actionWait', { time: `<t:${unixNow() + Math.ceil(wait / 1000)}:R>` }));
   return true;
 }
 
@@ -79,7 +79,7 @@ async function textChannel(guild, id) {
   return ch?.isTextBased() ? ch : null;
 }
 
-async function logEvent(guild, config, { title, color = COLORS.main, description, fields = [], files = [], components = [] }) {
+async function logEvent(guild, config, { title, color = config.colors.main, description, fields = [], files = [], components = [] }) {
   const ch = await textChannel(guild, config.logChannelId);
   if (!ch) return;
   const embed = new EmbedBuilder().setColor(color).setTitle(title).setTimestamp().setFooter({ text: config.brandName });
@@ -106,8 +106,8 @@ async function storeTranscript(transcript, ownerId, number) {
     return key;
   } catch (err) { console.error('[TRANSCRIPT] kaydedilemedi:', err.message); return null; }
 }
-const transcriptRow = key => (key ? [new ActionRowBuilder().addComponents(
-  new ButtonBuilder().setCustomId(`transcript-dl:${key}`).setLabel('Transcript indir').setEmoji('📄').setStyle(ButtonStyle.Primary),
+const transcriptRow = (config, key) => (key ? [new ActionRowBuilder().addComponents(
+  new ButtonBuilder().setCustomId(`transcript-dl:${key}`).setLabel(msg(config, 'btnTranscript').slice(0, 80)).setStyle(ButtonStyle.Primary),
 )] : []);
 
 /* ------------------------------------------------------------------ */
@@ -120,7 +120,7 @@ async function openTicket({ guild, user, config, button, answers = [] }) {
     return t && t.ownerId === user.id && t.status === 'open';
   });
   if (mine.length >= config.settings.maxOpenPerUser) {
-    return { error: `Zaten açık bir ticket'ın var: ${mine[0]}` };
+    return { error: msg(config, 'alreadyOpen', { channel: `${mine[0]}` }) };
   }
 
   const categoryId = button.categoryId || config.ticketCategoryId;
@@ -131,7 +131,7 @@ async function openTicket({ guild, user, config, button, answers = [] }) {
   const roleIds = config.supportRoleIds.filter(id => guild.roles.cache.has(id));
 
   const channel = await guild.channels.create({
-    name: `ticket-${pad(number)}-${safe}`,
+    name: config.settings.channelNameFormat.replace(/\{number\}/g, pad(number)).replace(/\{user\}/g, safe).slice(0, 100),
     type: ChannelType.GuildText,
     ...(parent ? { parent } : {}),
     topic: buildTicketTopic({ ownerId: user.id, buttonId: button.id, number }),
@@ -151,15 +151,15 @@ async function openTicket({ guild, user, config, button, answers = [] }) {
   const te = config.ticketEmbed;
   const fill = text => String(text || '').replace(/\{user\}/gi, `<@${user.id}>`).replace(/\{category\}/gi, button.label).replace(/\{number\}/gi, pad(number));
   const embed = new EmbedBuilder()
-    .setColor(te.color || COLORS.main)
+    .setColor(te.color || config.colors.main)
     .setTitle(fill(te.title).slice(0, 256) || `Ticket #${pad(number)}`)
     .setDescription(welcome)
     .setFooter({ text: te.footer || config.brandName });
   if (te.showDetails) {
     embed.addFields(
-      { name: 'Açan', value: `<@${user.id}>`, inline: true },
-      { name: 'Kategori', value: button.label, inline: true },
-      { name: 'Açılış', value: `<t:${unix(Date.now())}:R>`, inline: true },
+      { name: msg(config, 'fieldOwner'), value: `<@${user.id}>`, inline: true },
+      { name: msg(config, 'fieldCategory'), value: button.label, inline: true },
+      { name: msg(config, 'fieldOpened'), value: `<t:${unix(Date.now())}:R>`, inline: true },
     );
   }
   const imgFile = await attachmentFor(te.imageUrl, 'ticket-image');
@@ -168,7 +168,7 @@ async function openTicket({ guild, user, config, button, answers = [] }) {
   if (thumbFile) embed.setThumbnail(`attachment://${thumbFile.name}`); else if (te.thumbnailUrl) embed.setThumbnail(te.thumbnailUrl);
   const answerFields = answers.filter(a => a.value).slice(0, 5).map(a => ({ name: a.label.slice(0, 256), value: a.value.slice(0, 1000) }));
   const embeds = [embed];
-  if (answerFields.length) embeds.push(new EmbedBuilder().setColor(COLORS.main).setTitle('Form yanıtları').addFields(answerFields));
+  if (answerFields.length) embeds.push(new EmbedBuilder().setColor(config.colors.main).setTitle(msg(config, 'formAnswersTitle').slice(0, 256)).addFields(answerFields));
 
   const ping = config.settings.pingSupportOnOpen ? roleIds : [];
   await channel.send({
@@ -184,11 +184,11 @@ async function openTicket({ guild, user, config, button, answers = [] }) {
     buttonLabel: button.label, status: 'open', createdAt: Date.now(), answers: answerFields,
   });
   await logEvent(guild, config, {
-    title: `Ticket açıldı · #${pad(number)}`, color: COLORS.green,
+    title: msg(config, 'logOpenedTitle', { number: pad(number) }), color: config.colors.success,
     fields: [
-      { name: 'Kanal', value: `${channel}`, inline: true },
-      { name: 'Açan', value: `<@${user.id}>`, inline: true },
-      { name: 'Kategori', value: button.label, inline: true },
+      { name: msg(config, 'fieldChannel'), value: `${channel}`, inline: true },
+      { name: msg(config, 'fieldOwner'), value: `<@${user.id}>`, inline: true },
+      { name: msg(config, 'fieldCategory'), value: button.label, inline: true },
     ],
   });
   return { channel, number };
@@ -196,23 +196,24 @@ async function openTicket({ guild, user, config, button, answers = [] }) {
 
 async function closeTicket({ channel, config, actor, reason }) {
   const t = parseTicket(channel);
-  if (!t) return { error: 'Bu kanal bir ticket değil.' };
-  if (t.status !== 'open') return { error: 'Bu ticket zaten kapatılmış.' };
-  const why = String(reason || '').trim().slice(0, 400) || 'Sebep belirtilmedi';
+  if (!t) return { error: msg(config, 'errNotTicketChannel') };
+  if (t.status !== 'open') return { error: msg(config, 'errAlreadyClosed') };
+  const why = String(reason || '').trim().slice(0, 400) || msg(config, 'closeReasonDefault');
   const guild = channel.guild;
 
   const transcript = await makeTranscript(channel, config, t.number);
   const tKey = await storeTranscript(transcript, t.ownerId, t.number);
-  const name = channel.name.startsWith('closed-') ? channel.name : `closed-${channel.name}`.slice(0, 100);
+  const prefix = config.settings.closedPrefix;
+  const name = channel.name.startsWith(prefix) ? channel.name : `${prefix}${channel.name}`.slice(0, 100);
   await editSoft(channel, { name, topic: buildTicketTopic({ ...t, status: 'closed' }) });
   const hideFailed = await hideFromMembers(channel, t.ownerId);
 
   await channel.send({
-    embeds: [new EmbedBuilder().setColor(COLORS.amber).setTitle(`Ticket #${pad(t.number)} kapatıldı`)
-      .addFields({ name: 'Kapatan', value: actor.mention, inline: true }, { name: 'Sebep', value: why })
-      .setDescription('Destek ekibi bu ticket\'ı yeniden açabilir veya kalıcı olarak silebilir.')
+    embeds: [new EmbedBuilder().setColor(config.colors.warning).setTitle(msg(config, 'closedTitle', { number: pad(t.number) }).slice(0, 256))
+      .addFields({ name: msg(config, 'fieldClosedBy'), value: actor.mention, inline: true }, { name: msg(config, 'fieldReason'), value: why })
+      .setDescription(msg(config, 'closedDescription'))
       .setFooter({ text: config.brandName })],
-    components: [buildClosedTicketRow()],
+    components: [buildClosedTicketRow(config)],
     allowedMentions: { parse: [] },
   }).catch(() => null);
 
@@ -221,9 +222,9 @@ async function closeTicket({ channel, config, actor, reason }) {
     const owner = await channel.client.users.fetch(t.ownerId).catch(() => null);
     if (owner) {
       dmSent = await owner.send({
-        embeds: [new EmbedBuilder().setColor(COLORS.amber).setTitle(`Ticket'ın kapatıldı · #${pad(t.number)}`)
-          .setDescription(`**${guild.name}** sunucusundaki destek talebin kapatıldı.`)
-          .addFields({ name: 'Sebep', value: why }).setFooter({ text: config.brandName })],
+        embeds: [new EmbedBuilder().setColor(config.colors.warning).setTitle(msg(config, 'dmClosedTitle', { number: pad(t.number) }).slice(0, 256))
+          .setDescription(msg(config, 'dmClosedDescription', { server: guild.name }))
+          .addFields({ name: msg(config, 'fieldReason'), value: why }).setFooter({ text: config.brandName })],
         files: config.settings.dmTranscript ? attach(transcript) : [],
       }).then(() => true).catch(() => false);
     }
@@ -231,37 +232,37 @@ async function closeTicket({ channel, config, actor, reason }) {
 
   store.upsert(channel.id, { status: 'closed', closedAt: Date.now(), closedBy: actor.label, closeReason: why });
   await logEvent(guild, config, {
-    title: `Ticket kapatıldı · #${pad(t.number)}`, color: COLORS.amber,
+    title: msg(config, 'logClosedTitle', { number: pad(t.number) }), color: config.colors.warning,
     fields: [
-      { name: 'Kanal', value: `${channel}`, inline: true },
-      { name: 'Kapatan', value: actor.mention, inline: true },
-      { name: 'Sebep', value: why },
+      { name: msg(config, 'fieldChannel'), value: `${channel}`, inline: true },
+      { name: msg(config, 'fieldClosedBy'), value: actor.mention, inline: true },
+      { name: msg(config, 'fieldReason'), value: why },
     ],
-    components: transcriptRow(tKey),
-    ...(tKey ? { description: 'Transcript yalnızca ticket sahibi tarafından indirilebilir.' } : {}),
+    components: transcriptRow(config, tKey),
+    ...(tKey ? { description: msg(config, 'transcriptNote') } : {}),
   });
   return { dmSent, hideFailed };
 }
 
 async function reopenTicket({ channel, config, actor }) {
   const t = parseTicket(channel);
-  if (!t) return { error: 'Bu kanal bir ticket değil.' };
-  if (t.status !== 'closed') return { error: 'Bu ticket zaten açık.' };
+  if (!t) return { error: msg(config, 'errNotTicketChannel') };
+  if (t.status !== 'closed') return { error: msg(config, 'ticketAlreadyOpen') };
   if (t.ownerId) {
     await channel.permissionOverwrites.edit(t.ownerId, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true, AttachFiles: true, EmbedLinks: true }).catch(() => null);
   }
-  await editSoft(channel, { name: channel.name.replace(/^closed-/, ''), topic: buildTicketTopic({ ...t, status: 'open' }) });
+  await editSoft(channel, { name: channel.name.startsWith(config.settings.closedPrefix) ? channel.name.slice(config.settings.closedPrefix.length) : channel.name, topic: buildTicketTopic({ ...t, status: 'open' }) });
   await channel.send({
     content: t.ownerId ? `<@${t.ownerId}>` : undefined,
-    embeds: [new EmbedBuilder().setColor(COLORS.green).setTitle(`Ticket #${pad(t.number)} yeniden açıldı`)
-      .setDescription(`${actor.mention} bu ticket'ı yeniden açtı.`).setFooter({ text: config.brandName })],
+    embeds: [new EmbedBuilder().setColor(config.colors.success).setTitle(msg(config, 'reopenedTitle', { number: pad(t.number) }).slice(0, 256))
+      .setDescription(msg(config, 'reopenedDescription', { staff: actor.mention })).setFooter({ text: config.brandName })],
     components: [buildOpenTicketRow(config)],
     allowedMentions: { users: t.ownerId ? [t.ownerId] : [] },
   }).catch(() => null);
   store.upsert(channel.id, { status: 'open', reopenedAt: Date.now(), closedAt: null, closeReason: null });
   await logEvent(channel.guild, config, {
-    title: `Ticket yeniden açıldı · #${pad(t.number)}`, color: COLORS.green,
-    fields: [{ name: 'Kanal', value: `${channel}`, inline: true }, { name: 'Açan', value: actor.mention, inline: true }],
+    title: msg(config, 'logReopenedTitle', { number: pad(t.number) }), color: config.colors.success,
+    fields: [{ name: msg(config, 'fieldChannel'), value: `${channel}`, inline: true }, { name: msg(config, 'fieldOwner'), value: actor.mention, inline: true }],
   });
   return { ok: true };
 }
@@ -269,27 +270,27 @@ async function reopenTicket({ channel, config, actor }) {
 // Kanalı kalıcı siler. Silmeden önce transcript log kanalına gönderilir.
 async function deleteTicket({ channel, config, actor, reason = '' }) {
   const t = parseTicket(channel);
-  if (!t) return { error: 'Bu kanal bir ticket değil.' };
+  if (!t) return { error: msg(config, 'errNotTicketChannel') };
   const delay = config.settings.deleteDelaySeconds;
   const transcript = await makeTranscript(channel, config, t.number);
   const tKey = await storeTranscript(transcript, t.ownerId, t.number);
 
   await channel.send({
-    embeds: [new EmbedBuilder().setColor(COLORS.red).setTitle('Ticket siliniyor')
-      .setDescription(delay > 0 ? `Bu kanal **${delay} saniye** içinde silinecek.` : 'Bu kanal siliniyor.')
-      .setFooter({ text: `${actor.label} tarafından` })],
+    embeds: [new EmbedBuilder().setColor(config.colors.danger).setTitle(msg(config, 'deletingTitle').slice(0, 256))
+      .setDescription(delay > 0 ? msg(config, 'deletingDelay', { delay }) : msg(config, 'deletingNow'))
+      .setFooter({ text: msg(config, 'deletingFooter', { staff: actor.label }).slice(0, 2048) })],
   }).catch(() => null);
 
   store.upsert(channel.id, { status: 'deleted', deletedAt: Date.now(), deletedBy: actor.label });
   await logEvent(channel.guild, config, {
-    title: `Ticket silindi · #${pad(t.number)}`, color: COLORS.red,
+    title: msg(config, 'logDeletedTitle', { number: pad(t.number) }), color: config.colors.danger,
     fields: [
-      { name: 'Silen', value: actor.mention, inline: true },
-      { name: 'Sahibi', value: t.ownerId ? `<@${t.ownerId}>` : '—', inline: true },
-      ...(reason ? [{ name: 'Sebep', value: reason.slice(0, 400) }] : []),
+      { name: msg(config, 'fieldDeletedBy'), value: actor.mention, inline: true },
+      { name: msg(config, 'fieldTicketOwner'), value: t.ownerId ? `<@${t.ownerId}>` : '—', inline: true },
+      ...(reason ? [{ name: msg(config, 'fieldReason'), value: reason.slice(0, 400) }] : []),
     ],
-    components: transcriptRow(tKey),
-    ...(tKey ? { description: 'Transcript yalnızca ticket sahibi tarafından indirilebilir.' } : {}),
+    components: transcriptRow(config, tKey),
+    ...(tKey ? { description: msg(config, 'transcriptNote') } : {}),
   });
   if (delay > 0) await sleep(delay * 1000);
   await channel.delete(`Ticket silindi: ${actor.label}`).catch(err => console.error('[TICKET] kanal silinemedi:', err.message));
@@ -298,11 +299,11 @@ async function deleteTicket({ channel, config, actor, reason = '' }) {
 
 async function claimTicket({ channel, config, actor }) {
   const t = parseTicket(channel);
-  if (!t || t.status !== 'open') return { error: 'Bu işlem açık bir ticket kanalında yapılabilir.' };
-  if (t.claimId && t.claimId !== actor.id) return { error: `Bu ticket zaten <@${t.claimId}> tarafından üstlenilmiş.` };
+  if (!t || t.status !== 'open') return { error: msg(config, 'errNeedOpen') };
+  if (t.claimId && t.claimId !== actor.id) return { error: msg(config, 'claimTaken', { claimer: `<@${t.claimId}>` }) };
   await editSoft(channel, { topic: buildTicketTopic({ ...t, claimId: actor.id }) });
   await channel.send({
-    embeds: [new EmbedBuilder().setColor(COLORS.main).setDescription(`🙋 ${actor.mention} bu ticket'ı üstlendi.`)],
+    embeds: [new EmbedBuilder().setColor(config.colors.main).setDescription(msg(config, 'claimedMessage', { staff: actor.mention }))],
     allowedMentions: { users: [actor.id] },
   }).catch(() => null);
   store.upsert(channel.id, { claimedBy: actor.id, claimedByTag: actor.label });
@@ -313,8 +314,8 @@ async function claimTicket({ channel, config, actor }) {
 /* Discord etkileşimleri (buton / modal / slash komut)                  */
 /* ------------------------------------------------------------------ */
 
-function buildTicketForm(button) {
-  const modal = new ModalBuilder().setCustomId(`ticket-form-submit:${button.id}`).setTitle(`Ticket: ${button.label}`.slice(0, 45));
+function buildTicketForm(button, config) {
+  const modal = new ModalBuilder().setCustomId(`ticket-form-submit:${button.id}`).setTitle(msg(config, 'formTitle', { category: button.label }).slice(0, 45));
   button.formFields.slice(0, 5).forEach((field, i) => {
     const input = new TextInputBuilder().setCustomId(`ticket-field-${i}`).setLabel(field.label.slice(0, 45))
       .setStyle(TextInputStyle.Paragraph).setRequired(Boolean(field.required)).setMaxLength(1000);
@@ -324,24 +325,24 @@ function buildTicketForm(button) {
   return modal;
 }
 
-function buildCloseModal() {
-  const reason = new TextInputBuilder().setCustomId('ticket-close-reason').setLabel('Kapatma sebebi')
-    .setPlaceholder('Kısa bir açıklama yaz').setStyle(TextInputStyle.Paragraph).setRequired(true).setMaxLength(400);
-  return new ModalBuilder().setCustomId('ticket-close-submit').setTitle('Ticket\'ı kapat').addComponents(new ActionRowBuilder().addComponents(reason));
+function buildCloseModal(config) {
+  const reason = new TextInputBuilder().setCustomId('ticket-close-reason').setLabel(msg(config, 'closeModalLabel').slice(0, 45))
+    .setPlaceholder(msg(config, 'closeModalPlaceholder').slice(0, 100)).setStyle(TextInputStyle.Paragraph).setRequired(config.settings.closeReasonRequired).setMaxLength(400);
+  return new ModalBuilder().setCustomId('ticket-close-submit').setTitle(msg(config, 'closeModalTitle').slice(0, 45)).addComponents(new ActionRowBuilder().addComponents(reason));
 }
 
 // Ortak ön kontrol: kanal ticket mı, açık mı, yetki var mı. Sorun varsa kullanıcıya söyler ve null döner.
 async function guard(interaction, config, { staff = false, ownerOrStaff = false, status = null } = {}) {
   const t = parseTicket(interaction.channel);
-  if (!t) { await replyPrivate(interaction, 'Bu komut yalnızca bir ticket kanalında kullanılabilir.'); return null; }
+  if (!t) { await replyPrivate(interaction, msg(config, 'notTicket')); return null; }
   if (status && t.status !== status) {
-    await replyPrivate(interaction, status === 'open' ? 'Bu ticket kapatılmış.' : 'Bu ticket zaten açık.');
+    await replyPrivate(interaction, status === 'open' ? msg(config, 'ticketClosed') : msg(config, 'ticketAlreadyOpen'));
     return null;
   }
   const staffOk = isStaff(interaction.member, config);
-  if (staff && !staffOk) { await replyPrivate(interaction, 'Bu işlem destek ekibi içindir.'); return null; }
+  if (staff && !staffOk) { await replyPrivate(interaction, msg(config, 'staffOnly')); return null; }
   if (ownerOrStaff && !staffOk && t.ownerId !== interaction.user.id) {
-    await replyPrivate(interaction, 'Bu işlemi yalnızca ticket sahibi veya destek ekibi yapabilir.');
+    await replyPrivate(interaction, msg(config, 'ownerOrStaffOnly'));
     return null;
   }
   return t;
@@ -349,19 +350,19 @@ async function guard(interaction, config, { staff = false, ownerOrStaff = false,
 
 async function handleOpenButton(interaction, config, buttonId) {
   const button = config.buttons.find(b => b.id === buttonId);
-  if (!button) return replyPrivate(interaction, 'Bu ticket butonu artık kullanılmıyor.');
+  if (!button) return replyPrivate(interaction, msg(config, 'buttonGone'));
   const wait = cooldownLeftMs(interaction, config, button);
-  if (wait > 0) return replyPrivate(interaction, `Bu kategoride yeni talep açmak için biraz beklemelisin. Tekrar deneyebileceğin zaman: <t:${unix(Date.now() + wait)}:R>`);
-  if (button.formEnabled && button.formFields.length) return interaction.showModal(buildTicketForm(button));
+  if (wait > 0) return replyPrivate(interaction, msg(config, 'cooldownOpen', { time: `<t:${unix(Date.now() + wait)}:R>` }));
+  if (button.formEnabled && button.formFields.length) return interaction.showModal(buildTicketForm(button, config));
   await interaction.deferReply({ ephemeral: true });
   return createFromInteraction(interaction, config, button, []);
 }
 
 async function handleFormSubmit(interaction, config, buttonId) {
   const button = config.buttons.find(b => b.id === buttonId);
-  if (!button) return replyPrivate(interaction, 'Bu ticket formu artık kullanılmıyor.');
+  if (!button) return replyPrivate(interaction, msg(config, 'formGone'));
   const wait = cooldownLeftMs(interaction, config, button);
-  if (wait > 0) return replyPrivate(interaction, `Bu kategoride yeni talep açmak için biraz beklemelisin. Tekrar deneyebileceğin zaman: <t:${unix(Date.now() + wait)}:R>`);
+  if (wait > 0) return replyPrivate(interaction, msg(config, 'cooldownOpen', { time: `<t:${unix(Date.now() + wait)}:R>` }));
   const answers = button.formFields.map((field, i) => ({ label: field.label, value: interaction.fields.getTextInputValue(`ticket-field-${i}`) }));
   await interaction.deferReply({ ephemeral: true });
   return createFromInteraction(interaction, config, button, answers);
@@ -369,41 +370,55 @@ async function handleFormSubmit(interaction, config, buttonId) {
 
 async function createFromInteraction(interaction, config, button, answers) {
   const res = await openTicket({ guild: interaction.guild, user: interaction.user, config, button, answers });
-  return replyPrivate(interaction, res.error || `Ticket'ın açıldı: ${res.channel}`);
+  return replyPrivate(interaction, res.error || msg(config, 'openedReply', { channel: `${res.channel}`, category: button.label, number: pad(res.number) }));
+}
+
+// "Kapat" butonu: sebep penceresi sadece ayarlandığı kişiye açılır (varsayılan: yalnızca destek ekibi).
+async function handleCloseButton(interaction, config) {
+  const t = await guard(interaction, config, { ownerOrStaff: true, status: 'open' });
+  if (!t) return;
+  if (await gateAction(interaction, config, 'close')) return;
+  markAction(interaction.channelId, 'close');
+  const mode = config.settings.askCloseReason;
+  const ask = mode === 'everyone' || (mode === 'staff' && isStaff(interaction.member, config));
+  if (ask) return interaction.showModal(buildCloseModal(config));
+  return handleClose(interaction, config, '');
 }
 
 async function handleClose(interaction, config, reason) {
   if (!await guard(interaction, config, { ownerOrStaff: true, status: 'open' })) return;
   if (!interaction.deferred && !interaction.replied) await interaction.deferReply({ ephemeral: true });
+  // Sebep yazılmadıysa ve kapatan destek ekibinden değilse "ticket sahibi kapattı" yazılır
+  if (!String(reason || '').trim() && !isStaff(interaction.member, config)) reason = msg(config, 'closeReasonOwner');
   const res = await closeTicket({ channel: interaction.channel, config, actor: actorOf(interaction), reason });
   if (res.error) return replyPrivate(interaction, res.error);
-  const note = res.hideFailed ? ' ⚠️ Kanal kullanıcıdan gizlenemedi: botun "Rolleri Yönet" izni yok.' : '';
-  return replyPrivate(interaction, (res.dmSent ? 'Ticket kapatıldı; sebep kullanıcıya DM olarak gönderildi.' : 'Ticket kapatıldı; kullanıcıya DM gönderilemedi.') + note);
+  const note = res.hideFailed ? ` ${msg(config, 'closeHideFailed')}` : '';
+  return replyPrivate(interaction, msg(config, res.dmSent ? 'closeReplyDm' : 'closeReplyNoDm') + note);
 }
 
 async function handleTranscriptDownload(interaction, config, key) {
   await interaction.deferReply({ ephemeral: true });
   const doc = await db.getBlob(key).catch(() => null);
-  if (!doc) return replyPrivate(interaction, 'Bu transcript bulunamadı (çok eski bir kayıt olabilir).');
+  if (!doc) return replyPrivate(interaction, msg(config, 'transcriptMissing'));
   const allowed = interaction.user.id === doc.ownerId || (config.settings.transcriptAdminIds || []).includes(interaction.user.id);
-  if (!allowed) return replyPrivate(interaction, 'Bu transcript\'i yalnızca ticket sahibi indirebilir.');
-  return interaction.editReply({ content: `Ticket #${pad(doc.number)} transcript'i:`, files: [new AttachmentBuilder(Buffer.from(doc.html, 'utf8'), { name: doc.name })] });
+  if (!allowed) return replyPrivate(interaction, msg(config, 'transcriptDenied'));
+  return interaction.editReply({ content: msg(config, 'transcriptFile', { number: pad(doc.number) }), files: [new AttachmentBuilder(Buffer.from(doc.html, 'utf8'), { name: doc.name })] });
 }
 
 async function handleReopen(interaction, config) {
   if (!await guard(interaction, config, { staff: true, status: 'closed' })) return;
   await interaction.deferReply({ ephemeral: true });
   const res = await reopenTicket({ channel: interaction.channel, config, actor: actorOf(interaction) });
-  return replyPrivate(interaction, res.error || 'Ticket yeniden açıldı.');
+  return replyPrivate(interaction, res.error || msg(config, 'reopenReply'));
 }
 
 // Silme düğmesi: yanlışlıkla tıklamaya karşı önce onay ister.
 async function handleDeleteRequest(interaction, config) {
   if (!await guard(interaction, config, { staff: true })) return;
   return interaction.reply({
-    content: 'Bu ticket kalıcı olarak silinecek. Emin misin?',
+    content: msg(config, 'deleteConfirm'),
     components: [new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('ticket-action:delete-confirm').setLabel('Evet, sil').setEmoji('🗑️').setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId('ticket-action:delete-confirm').setLabel(msg(config, 'btnDeleteConfirm').slice(0, 80)).setStyle(ButtonStyle.Danger),
     )],
     ephemeral: true,
   });
@@ -411,7 +426,7 @@ async function handleDeleteRequest(interaction, config) {
 
 async function handleDelete(interaction, config, reason = '') {
   if (!await guard(interaction, config, { staff: true })) return;
-  await replyPrivate(interaction, 'Ticket siliniyor, transcript log kanalına gönderilecek.');
+  await replyPrivate(interaction, msg(config, 'deleteReply'));
   await deleteTicket({ channel: interaction.channel, config, actor: actorOf(interaction), reason });
 }
 
@@ -421,7 +436,7 @@ async function handleClaim(interaction, config) {
   markAction(interaction.channelId, 'claim');
   await interaction.deferReply({ ephemeral: true });
   const res = await claimTicket({ channel: interaction.channel, config, actor: actorOf(interaction) });
-  return replyPrivate(interaction, res.error || 'Ticket\'ı üstlendin.');
+  return replyPrivate(interaction, res.error || msg(config, 'claimReply'));
 }
 
 async function handleCallStaff(interaction, config) {
@@ -429,13 +444,13 @@ async function handleCallStaff(interaction, config) {
   if (!t) return;
   if (await gateAction(interaction, config, 'callStaff')) return;
   const roleIds = config.supportRoleIds.filter(id => interaction.guild.roles.cache.has(id));
-  if (!roleIds.length) return replyPrivate(interaction, 'Panelde destek yetkili rolü ayarlanmamış.');
+  if (!roleIds.length) return replyPrivate(interaction, msg(config, 'callStaffNoRole'));
   markAction(interaction.channelId, 'callStaff');
   await interaction.channel.send({
-    content: `📣 Yetkili çağrısı: ${roleIds.map(id => `<@&${id}>`).join(' ')}`,
+    content: msg(config, 'callStaffMessage', { roles: roleIds.map(id => `<@&${id}>`).join(' ') }),
     allowedMentions: { roles: roleIds },
   });
-  return replyPrivate(interaction, 'Destek ekibi çağrıldı.');
+  return replyPrivate(interaction, msg(config, 'callStaffReply'));
 }
 
 async function handleAddUser(interaction, config, user) {
@@ -443,23 +458,23 @@ async function handleAddUser(interaction, config, user) {
   await interaction.channel.permissionOverwrites.edit(user.id, {
     ViewChannel: true, SendMessages: true, ReadMessageHistory: true, AttachFiles: true, EmbedLinks: true,
   });
-  await interaction.channel.send({ content: `${user} ticket'a eklendi.`, allowedMentions: { users: [user.id] } });
-  return replyPrivate(interaction, `${user.username} ticket'a eklendi.`);
+  await interaction.channel.send({ content: msg(config, 'userAddedChannel', { user: `${user}` }), allowedMentions: { users: [user.id] } });
+  return replyPrivate(interaction, msg(config, 'userAddedReply', { username: user.username }));
 }
 
 async function handleRemoveUser(interaction, config, user) {
   const t = await guard(interaction, config, { staff: true, status: 'open' });
   if (!t) return;
-  if (t.ownerId === user.id) return replyPrivate(interaction, 'Ticket sahibini ticket\'tan çıkaramazsın.');
+  if (t.ownerId === user.id) return replyPrivate(interaction, msg(config, 'cannotRemoveOwner'));
   await interaction.channel.permissionOverwrites.delete(user.id).catch(() => null);
-  await interaction.channel.send({ content: `${user.username} ticket'tan çıkarıldı.`, allowedMentions: { parse: [] } });
-  return replyPrivate(interaction, `${user.username} ticket'tan çıkarıldı.`);
+  await interaction.channel.send({ content: msg(config, 'userRemovedChannel', { username: user.username }), allowedMentions: { parse: [] } });
+  return replyPrivate(interaction, msg(config, 'userRemovedReply', { username: user.username }));
 }
 
 module.exports = {
   PANEL_ACTOR, pad,
   openTicket, closeTicket, reopenTicket, deleteTicket, claimTicket,
-  buildCloseModal, gateAction, markAction,
+  buildCloseModal, handleCloseButton, gateAction, markAction,
   handleTranscriptDownload, handleOpenButton, handleFormSubmit, handleClose, handleReopen, handleDeleteRequest, handleDelete,
   handleClaim, handleCallStaff, handleAddUser, handleRemoveUser,
 };

@@ -1,5 +1,6 @@
 /* Deuslra Destek · yönetim paneli (framework yok, saf JS) */
 const root = document.getElementById('root');
+let schema = { messages: [], site: [] };
 let cfg = null, meta = { connected: false, channels: [], categories: [], roles: [] };
 let isDirty = false, previewEl = null, ticketPreviewEl = null, saveInfo = null, timer = null, refreshDiag = () => {};
 
@@ -231,6 +232,16 @@ function generalPane() {
         field('Marka adı', text(cfg, 'brandName', { max: 40 }), 'Site başlığı ve embed altlıklarında görünür.'))),
     h('div', { class: 'card' }, h('h2', {}, 'Destek rolleri'),
       h('p', { class: 'hint', style: 'margin-bottom:12px' }, 'Seçilen roller ticketları görür, üstlenir, kapatır ve siler; bekleme süresinden de muaftır. Sunucuyu yönetebilenler zaten yetkilidir.'), roles),
+    h('div', { class: 'card' }, h('h2', {}, 'Kapatma ve kanal adı'),
+      (() => {
+        const sel = h('select', {}, [['staff', 'Sadece destek ekibine sor'], ['everyone', 'Herkese sor'], ['nobody', 'Kimseye sorma']].map(([v, l]) => h('option', { value: v }, l)));
+        sel.value = cfg.settings.askCloseReason; sel.addEventListener('change', () => { cfg.settings.askCloseReason = sel.value; dirty(); });
+        return field('Kapatırken sebep penceresi kime çıksın?', sel, 'Sorulmayan kişi (ör. ticket sahibi) butona basınca direkt kapanır; sebep olarak "Bot mesajları" sekmesindeki "Ticket sahibi kapatınca" yazısı kullanılır.');
+      })(),
+      check(cfg.settings, 'closeReasonRequired', 'Sebep penceresinde yazmak zorunlu olsun'),
+      h('div', { class: 'grid2' },
+        field('Kanal adı kalıbı', text(cfg.settings, 'channelNameFormat', { max: 60 }), '{number} ve {user} yazabilirsin. Küçük harf, rakam ve - kullan. Yeni açılan ticketlar için geçerli.'),
+        field('Kapanınca ada eklenen ön ek', text(cfg.settings, 'closedPrefix', { max: 20 }), 'Boş bırakırsan kanal adı değişmez.'))),
     h('div', { class: 'card' }, h('h2', {}, 'Ticket kuralları'),
       h('div', { class: 'grid2' },
         field('Kişi başı en fazla açık ticket', num(s, 'maxOpenPerUser', 1, 5)),
@@ -280,6 +291,10 @@ function appearancePane() {
           field('Renk', color),
           field('Küçük görsel URL', text(p, 'thumbnailUrl', { type: 'url', ph: 'https://…', k: 'panel.thumbnailUrl' }))),
         field('Büyük görsel / GIF URL', text(p, 'imageUrl', { type: 'url', ph: 'https://…/resim.gif', k: 'panel.imageUrl' }), 'Doğrudan .gif adresi koy. Tenor veya Giphy sayfa linki yapıştırırsan kaydederken otomatik GIF adresine çevrilir. Discord\'a yüklediğin dosyanın linki bir süre sonra bozulur; imgur gibi kalıcı bir adres daha güvenli.')),
+      h('div', { class: 'card' }, h('h2', {}, 'Bot mesaj renkleri'),
+        h('p', { class: 'hint', style: 'margin-bottom:12px' }, 'Botun gönderdiği mesajların sol şerit renkleri.'),
+        h('div', { class: 'grid2' }, field('Genel', colorInput(cfg.colors, 'main')), field('Başarılı (açıldı, yeniden açıldı)', colorInput(cfg.colors, 'success')),
+          field('Uyarı (kapatıldı)', colorInput(cfg.colors, 'warning')), field('Tehlike (siliniyor)', colorInput(cfg.colors, 'danger')))),
       h('div', { class: 'card' }, h('h2', {}, 'Talep açılınca görünen mesaj'),
         h('p', { class: 'hint', style: 'margin-bottom:12px' }, 'Kullanıcı ticket açınca kanalda çıkan karşılama mesajı.'),
         field('Başlık', text(cfg.ticketEmbed, 'title', { max: 256 }), '{number} {category} {user} yazabilirsin.'),
@@ -344,9 +359,43 @@ function buttonsPane() {
     list));
 }
 
+/* ---------- metin sekmeleri (Bot mesajları / Site yazıları) ---------- */
+// Tüm yazılar sunucudaki listeden otomatik çizilir; boş bırakılan yazı varsayılana döner.
+function textsPane(id, title, intro, defs, obj) {
+  const groups = {};
+  defs.forEach(d => (groups[d.group] ||= []).push(d));
+  const search = h('input', { type: 'text', placeholder: 'Ara… (ör. kapat, DM, transcript, buton)' });
+  const blocks = Object.entries(groups).map(([name, list]) => {
+    const det = h('details', { class: 'grp' }, h('summary', {}, name, h('span', { class: 'muted sm' }, `  ·  ${list.length} yazı`)));
+    list.forEach(d => {
+      const el = text(obj, d.key, { multi: d.multi, rows: 2, max: d.max || (d.multi ? 1500 : 300), ph: d.def });
+      const reset = h('button', { class: 'btn ghost sm', title: 'Varsayılan yazıya dön', onclick: () => { obj[d.key] = d.def; el.value = d.def; dirty(); } }, 'Varsayılan');
+      const row = h('div', { class: 'field txt' }, h('label', {}, d.label), h('div', { class: 'txt-in' }, el, reset),
+        d.vars.length ? h('p', { class: 'hint' }, 'Kullanılabilir: ' + d.vars.map(v => `{${v}}`).join('  ')) : null);
+      row.dataset.s = `${d.label} ${d.key} ${d.def}`.toLowerCase();
+      det.append(row);
+    });
+    return det;
+  });
+  search.addEventListener('input', () => {
+    const q = search.value.trim().toLowerCase();
+    blocks.forEach(det => {
+      let any = false;
+      det.querySelectorAll('.txt').forEach(r => { const m = !q || r.dataset.s.includes(q); r.style.display = m ? '' : 'none'; any = any || m; });
+      det.style.display = any ? '' : 'none'; if (q && any) det.open = true;
+    });
+  });
+  return h('div', { class: 'pane', id: `pane-${id}` },
+    h('div', { class: 'card' }, h('h2', {}, title), h('p', { class: 'hint', style: 'margin-bottom:12px' }, intro), search),
+    ...blocks.map(b => h('div', { class: 'card' }, b)));
+}
+const colorInput = (obj, key) => { const el = h('input', { type: 'color', value: obj[key] }); el.addEventListener('input', () => { obj[key] = el.value; dirty(); }); return el; };
+
 /* ---------- ana iskelet ---------- */
 function showApp() {
-  const tabs = [['overview', '📊', 'Genel bakış', overviewPane], ['general', '⚙️', 'Ayarlar', generalPane], ['look', '🎨', 'Panel görünümü', appearancePane], ['buttons', '🎫', 'Kategoriler & formlar', buttonsPane]];
+  const tabs = [['overview', '📊', 'Genel bakış', overviewPane], ['general', '⚙️', 'Ayarlar', generalPane], ['look', '🎨', 'Panel görünümü', appearancePane], ['buttons', '🎫', 'Kategoriler & formlar', buttonsPane],
+    ['messages', '💬', 'Bot mesajları', () => textsPane('messages', 'Bot mesajları', 'Botun ticket açarken, kapatırken, silerken, DM\'de ve logda yazdığı bütün yazılar. {süslü} kısımlar otomatik doldurulur. Kutuyu boş bırakırsan varsayılan yazı kullanılır.', schema.messages, cfg.messages)],
+    ['site', '🌐', 'Site yazıları', () => textsPane('site', 'Site yazıları', 'Ana sayfadaki bütün başlıklar, açıklamalar ve düğme yazıları.', schema.site, cfg.site)]];
   const panes = tabs.map(t => t[3]());
   saveInfo = h('span', { class: 'muted sm' }, 'Tüm ayarlar kayıtlı');
   const nav = h('nav', { class: 'card side' }, tabs.map(([id, ico, name], i) => h('button', {
@@ -385,7 +434,7 @@ function showLogin(enabled) {
   try {
     const s = await api('session');
     if (!s.authed) return showLogin(s.enabled);
-    [cfg, meta] = await Promise.all([api('admin/config'), api('admin/meta')]);
+    [cfg, meta, schema] = await Promise.all([api('admin/config'), api('admin/meta'), api('admin/schema')]);
     showApp();
   } catch (e) { root.replaceChildren(h('div', { class: 'card login' }, h('h1', {}, 'Bağlanılamadı'), h('p', { class: 'muted' }, e.message))); }
 })();

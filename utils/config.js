@@ -1,6 +1,7 @@
 const path = require('path');
 const { readJson } = require('./json');
 const db = require('./db');
+const { MESSAGE_DEFS, SITE_DEFS, normalizeTexts } = require('./messages');
 
 const ROOT = path.join(__dirname, '..');
 const CONFIG_PATH = path.join(ROOT, 'config', 'ticket-config.json');
@@ -39,6 +40,9 @@ function defaultConfig() {
         formFields: [{ label: 'Konu', placeholder: 'Sana nasıl yardımcı olabiliriz?', required: true }],
       },
     ],
+    colors: { main: '#8B5CF6', success: '#22C55E', warning: '#F59E0B', danger: '#EF4444' },
+    messages: {},
+    site: {},
     ticketEmbed: { title: 'Ticket #{number} · {category}', color: '#8B5CF6', footer: '', imageUrl: '', thumbnailUrl: '', showDetails: true },
     actions: {
       close: { label: 'Talebi kapat', emoji: '🔒', color: 'danger', cooldownSeconds: 0 },
@@ -53,6 +57,10 @@ function defaultConfig() {
       dmOnClose: true,
       dmTranscript: true,
       transcriptAdminIds: ['1400335230220505089'],
+      askCloseReason: 'staff',
+      closeReasonRequired: true,
+      channelNameFormat: 'ticket-{number}-{user}',
+      closedPrefix: 'closed-',
       welcomeMessage: '{user} hoş geldin! Destek ekibi kısa süre içinde burada olacak. Sorununu ayrıntılı yazabilirsin.',
     },
   };
@@ -67,6 +75,12 @@ const cleanUrl = (v, label = 'Görsel') => {
   if (!s) return '';
   if (!/^https?:\/\/\S{1,2000}$/i.test(s)) throw new ConfigError(`${label} adresi geçersiz: http:// veya https:// ile başlamalı, boşluk içermemeli ve 2000 karakteri geçmemeli.`);
   return s;
+};
+const cleanColorOr = (v, def) => (/^#[0-9a-f]{6}$/i.test(String(v ?? '').trim()) ? String(v).trim() : def);
+// Kanal adı kalıbı: küçük harf/rakam/-/_ ve {number} {user}; {number} zorunlu
+const cleanChannelFormat = v => {
+  const s = String(v ?? '').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_{}-]/g, '').slice(0, 60);
+  return s.includes('{number}') ? s : '';
 };
 const clampInt = (v, min, max, def) => { const n = Number.parseInt(v, 10); return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def; };
 const bool = (v, def) => (typeof v === 'boolean' ? v : def);
@@ -154,6 +168,9 @@ function normalizeConfig(input) {
       thumbnailUrl: cleanUrl(te.thumbnailUrl, 'Talep içi küçük görsel'),
       showDetails: bool(te.showDetails, true),
     },
+    colors: Object.fromEntries(['main', 'success', 'warning', 'danger'].map(k => [k, cleanColorOr(c.colors?.[k], d.colors[k])])),
+    messages: normalizeTexts(c.messages, MESSAGE_DEFS),
+    site: normalizeTexts(c.site, SITE_DEFS),
     actions: { close: action('close'), claim: action('claim'), callStaff: action('callStaff') },
     settings: {
       maxOpenPerUser: clampInt(s.maxOpenPerUser, 1, 5, d.settings.maxOpenPerUser),
@@ -164,6 +181,11 @@ function normalizeConfig(input) {
       dmTranscript: bool(s.dmTranscript, d.settings.dmTranscript),
       // Ticket sahibi dışında transcript indirebilen kullanıcılar (destek ekibi bile indiremez)
       transcriptAdminIds: Array.isArray(s.transcriptAdminIds) ? [...new Set(s.transcriptAdminIds.map(cleanId).filter(Boolean))].slice(0, 10) : d.settings.transcriptAdminIds,
+      // Kapatırken sebep kime sorulsun: staff = sadece destek ekibine, everyone = herkese, nobody = kimseye
+      askCloseReason: ['staff', 'everyone', 'nobody'].includes(s.askCloseReason) ? s.askCloseReason : d.settings.askCloseReason,
+      closeReasonRequired: bool(s.closeReasonRequired, d.settings.closeReasonRequired),
+      channelNameFormat: cleanChannelFormat(s.channelNameFormat) || d.settings.channelNameFormat,
+      closedPrefix: typeof s.closedPrefix === 'string' ? s.closedPrefix.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 20) : d.settings.closedPrefix,
       welcomeMessage: str(s.welcomeMessage, 500) || d.settings.welcomeMessage,
     },
   };

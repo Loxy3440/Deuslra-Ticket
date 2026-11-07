@@ -6,8 +6,8 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('close')
     .setDescription('Bu ticket\'ı kapat ve sebebini kullanıcıya DM ile gönder')
-    .addStringOption(o => o.setName('reason').setDescription('Kapatma sebebi').setMaxLength(400).setRequired(true)),
+    .addStringOption(o => o.setName('reason').setDescription('Kapatma sebebi').setMaxLength(400).setRequired(false)),
   async execute(interaction) {
-    await handleClose(interaction, readConfig(), interaction.options.getString('reason', true));
+    await handleClose(interaction, readConfig(), interaction.options.getString('reason') || '');
   },
 };
