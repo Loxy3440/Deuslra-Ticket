@@ -3,6 +3,8 @@ const {
   ModalBuilder, OverwriteType, PermissionFlagsBits, TextInputBuilder, TextInputStyle,
 } = require('discord.js');
 const store = require('./store');
+const db = require('./db');
+const { attachmentFor } = require('./media');
 const { buildTicketTopic, parseTicket } = require('./config');
 const { isStaff } = require('./permissions');
 const { buildOpenTicketRow, buildClosedTicketRow } = require('./panel');
@@ -77,13 +79,13 @@ async function textChannel(guild, id) {
   return ch?.isTextBased() ? ch : null;
 }
 
-async function logEvent(guild, config, { title, color = COLORS.main, description, fields = [], files = [] }) {
+async function logEvent(guild, config, { title, color = COLORS.main, description, fields = [], files = [], components = [] }) {
   const ch = await textChannel(guild, config.logChannelId);
   if (!ch) return;
   const embed = new EmbedBuilder().setColor(color).setTitle(title).setTimestamp().setFooter({ text: config.brandName });
   if (description) embed.setDescription(description);
   if (fields.length) embed.addFields(fields);
-  await ch.send({ embeds: [embed], files, allowedMentions: { parse: [] } }).catch(err => console.error('[LOG]', err.message));
+  await ch.send({ embeds: [embed], files, components, allowedMentions: { parse: [] } }).catch(err => console.error('[LOG]', err.message));
 }
 
 async function makeTranscript(channel, config, number) {
@@ -92,6 +94,21 @@ async function makeTranscript(channel, config, number) {
   catch (err) { console.error('[TRANSCRIPT]', err.message); return null; }
 }
 const attach = t => (t ? [new AttachmentBuilder(t.buffer, { name: t.name })] : []);
+
+// Transcript log kanalına dosya olarak değil, veritabanına kaydedilip "indir" butonuyla verilir:
+// sadece ticket sahibi (ve ayarlardaki ekstra kişiler) indirebilir, destek ekibi bile indiremez.
+async function storeTranscript(transcript, ownerId, number) {
+  if (!transcript) return null;
+  if (transcript.buffer.length > 12 * 1024 * 1024) { console.error('[TRANSCRIPT] çok büyük, kaydedilmedi'); return null; }
+  const key = `${number}-${Date.now().toString(36)}`;
+  try {
+    await db.putBlob(key, { ownerId, number, name: transcript.name, html: transcript.buffer.toString('utf8'), createdAt: Date.now() });
+    return key;
+  } catch (err) { console.error('[TRANSCRIPT] kaydedilemedi:', err.message); return null; }
+}
+const transcriptRow = key => (key ? [new ActionRowBuilder().addComponents(
+  new ButtonBuilder().setCustomId(`transcript-dl:${key}`).setLabel('Transcript indir').setEmoji('📄').setStyle(ButtonStyle.Primary),
+)] : []);
 
 /* ------------------------------------------------------------------ */
 /* Çekirdek işlemler (Discord komutları ve web paneli ortak kullanır)   */
@@ -145,8 +162,10 @@ async function openTicket({ guild, user, config, button, answers = [] }) {
       { name: 'Açılış', value: `<t:${unix(Date.now())}:R>`, inline: true },
     );
   }
-  if (te.imageUrl) embed.setImage(te.imageUrl);
-  if (te.thumbnailUrl) embed.setThumbnail(te.thumbnailUrl);
+  const imgFile = await attachmentFor(te.imageUrl, 'ticket-image');
+  const thumbFile = await attachmentFor(te.thumbnailUrl, 'ticket-thumb');
+  if (imgFile) embed.setImage(`attachment://${imgFile.name}`); else if (te.imageUrl) embed.setImage(te.imageUrl);
+  if (thumbFile) embed.setThumbnail(`attachment://${thumbFile.name}`); else if (te.thumbnailUrl) embed.setThumbnail(te.thumbnailUrl);
   const answerFields = answers.filter(a => a.value).slice(0, 5).map(a => ({ name: a.label.slice(0, 256), value: a.value.slice(0, 1000) }));
   const embeds = [embed];
   if (answerFields.length) embeds.push(new EmbedBuilder().setColor(COLORS.main).setTitle('Form yanıtları').addFields(answerFields));
@@ -155,6 +174,7 @@ async function openTicket({ guild, user, config, button, answers = [] }) {
   await channel.send({
     content: [`<@${user.id}>`, ...ping.map(id => `<@&${id}>`)].join(' '),
     embeds,
+    files: [imgFile?.file, thumbFile?.file].filter(Boolean),
     components: [buildOpenTicketRow(config)],
     allowedMentions: { users: [user.id], roles: ping },
   });
@@ -182,6 +202,7 @@ async function closeTicket({ channel, config, actor, reason }) {
   const guild = channel.guild;
 
   const transcript = await makeTranscript(channel, config, t.number);
+  const tKey = await storeTranscript(transcript, t.ownerId, t.number);
   const name = channel.name.startsWith('closed-') ? channel.name : `closed-${channel.name}`.slice(0, 100);
   await editSoft(channel, { name, topic: buildTicketTopic({ ...t, status: 'closed' }) });
   const hideFailed = await hideFromMembers(channel, t.ownerId);
@@ -216,7 +237,8 @@ async function closeTicket({ channel, config, actor, reason }) {
       { name: 'Kapatan', value: actor.mention, inline: true },
       { name: 'Sebep', value: why },
     ],
-    files: attach(transcript),
+    components: transcriptRow(tKey),
+    ...(tKey ? { description: 'Transcript yalnızca ticket sahibi tarafından indirilebilir.' } : {}),
   });
   return { dmSent, hideFailed };
 }
@@ -250,6 +272,7 @@ async function deleteTicket({ channel, config, actor, reason = '' }) {
   if (!t) return { error: 'Bu kanal bir ticket değil.' };
   const delay = config.settings.deleteDelaySeconds;
   const transcript = await makeTranscript(channel, config, t.number);
+  const tKey = await storeTranscript(transcript, t.ownerId, t.number);
 
   await channel.send({
     embeds: [new EmbedBuilder().setColor(COLORS.red).setTitle('Ticket siliniyor')
@@ -265,7 +288,8 @@ async function deleteTicket({ channel, config, actor, reason = '' }) {
       { name: 'Sahibi', value: t.ownerId ? `<@${t.ownerId}>` : '—', inline: true },
       ...(reason ? [{ name: 'Sebep', value: reason.slice(0, 400) }] : []),
     ],
-    files: attach(transcript),
+    components: transcriptRow(tKey),
+    ...(tKey ? { description: 'Transcript yalnızca ticket sahibi tarafından indirilebilir.' } : {}),
   });
   if (delay > 0) await sleep(delay * 1000);
   await channel.delete(`Ticket silindi: ${actor.label}`).catch(err => console.error('[TICKET] kanal silinemedi:', err.message));
@@ -357,6 +381,15 @@ async function handleClose(interaction, config, reason) {
   return replyPrivate(interaction, (res.dmSent ? 'Ticket kapatıldı; sebep kullanıcıya DM olarak gönderildi.' : 'Ticket kapatıldı; kullanıcıya DM gönderilemedi.') + note);
 }
 
+async function handleTranscriptDownload(interaction, config, key) {
+  await interaction.deferReply({ ephemeral: true });
+  const doc = await db.getBlob(key).catch(() => null);
+  if (!doc) return replyPrivate(interaction, 'Bu transcript bulunamadı (çok eski bir kayıt olabilir).');
+  const allowed = interaction.user.id === doc.ownerId || (config.settings.transcriptAdminIds || []).includes(interaction.user.id);
+  if (!allowed) return replyPrivate(interaction, 'Bu transcript\'i yalnızca ticket sahibi indirebilir.');
+  return interaction.editReply({ content: `Ticket #${pad(doc.number)} transcript'i:`, files: [new AttachmentBuilder(Buffer.from(doc.html, 'utf8'), { name: doc.name })] });
+}
+
 async function handleReopen(interaction, config) {
   if (!await guard(interaction, config, { staff: true, status: 'closed' })) return;
   await interaction.deferReply({ ephemeral: true });
@@ -427,6 +460,6 @@ module.exports = {
   PANEL_ACTOR, pad,
   openTicket, closeTicket, reopenTicket, deleteTicket, claimTicket,
   buildCloseModal, gateAction, markAction,
-  handleOpenButton, handleFormSubmit, handleClose, handleReopen, handleDeleteRequest, handleDelete,
+  handleTranscriptDownload, handleOpenButton, handleFormSubmit, handleClose, handleReopen, handleDeleteRequest, handleDelete,
   handleClaim, handleCallStaff, handleAddUser, handleRemoveUser,
 };

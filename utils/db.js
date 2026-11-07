@@ -1,3 +1,4 @@
+const fs = require('fs');
 const path = require('path');
 const { readJson, writeJson } = require('./json');
 
@@ -14,6 +15,7 @@ let mode = 'file';
 let lastError = '';
 let client = null;
 let coll = null;
+let blobs = null;
 const cache = new Map();
 const chains = new Map(); // anahtar başına yazma sırası (eski veri yeniyi ezmesin)
 
@@ -24,7 +26,9 @@ async function init() {
   const { MongoClient } = require('mongodb');
   client = new MongoClient(uri, { serverSelectionTimeoutMS: 15000 });
   await client.connect();
-  coll = client.db(process.env.MONGODB_DB || 'deuslra-destek').collection('kv');
+  const database = client.db(process.env.MONGODB_DB || 'deuslra-destek');
+  coll = database.collection('kv');
+  blobs = database.collection('blobs');
   for (const doc of await coll.find({}).toArray()) cache.set(doc._id, doc.data);
   // Yazma testi: kullanıcıya yazma izni yoksa ayarlar her deploy'da kaybolur; bunu başta yakalayalım.
   try { await coll.replaceOne({ _id: '_health' }, { _id: '_health', at: new Date() }, { upsert: true }); }
@@ -58,6 +62,19 @@ function set(key, data) {
   writeJson(FILES[key], data);
 }
 
+// Büyük kayıtlar (transcript HTML) için: bellekte tutulmaz, istenince okunur.
+const safeKey = k => String(k).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 80);
+const BLOB_DIR = path.join(ROOT, 'data', 'blobs');
+async function putBlob(key, doc) {
+  if (mode === 'mongo') { await blobs.replaceOne({ _id: key }, { _id: key, ...doc }, { upsert: true }); return; }
+  fs.mkdirSync(BLOB_DIR, { recursive: true });
+  fs.writeFileSync(path.join(BLOB_DIR, `${safeKey(key)}.json`), JSON.stringify(doc));
+}
+async function getBlob(key) {
+  if (mode === 'mongo') return blobs.findOne({ _id: key });
+  return readJson(path.join(BLOB_DIR, `${safeKey(key)}.json`), null);
+}
+
 async function close() {
   await Promise.all([...chains.values()]);
   if (client) await client.close().catch(() => null);
@@ -65,4 +82,4 @@ async function close() {
 
 const getMode = () => mode;
 const getLastError = () => lastError;
-module.exports = { init, get, set, close, getMode, getLastError };
+module.exports = { init, get, set, putBlob, getBlob, close, getMode, getLastError };

@@ -3,6 +3,7 @@ const {
 } = require('discord.js');
 const { readPanelState, writePanelState } = require('./config');
 const { missingPermissions, PANEL_CHANNEL_REQUIRED } = require('./permissions');
+const { attachmentFor } = require('./media');
 
 const STYLES = {
   primary: ButtonStyle.Primary,
@@ -48,14 +49,16 @@ function buildSelectRow(config) {
   return new ActionRowBuilder().addComponents(menu);
 }
 
-function buildPanelPayload(config) {
+function buildPanelPayload(config, imgs = {}) {
   const panel = config.panel;
   const embed = new EmbedBuilder().setColor(panel.color || '#8B5CF6');
   if (panel.title) embed.setTitle(panel.title);
   if (panel.description) embed.setDescription(panel.description);
   if (panel.footer) embed.setFooter({ text: panel.footer });
-  if (panel.imageUrl) embed.setImage(panel.imageUrl);
-  if (panel.thumbnailUrl) embed.setThumbnail(panel.thumbnailUrl);
+  // Görsel indirilebildiyse mesaja dosya olarak eklenir (bağlantı süresi dolsa bile kalır), yoksa adres kullanılır.
+  if (imgs.image) embed.setImage(`attachment://${imgs.image.name}`); else if (panel.imageUrl) embed.setImage(panel.imageUrl);
+  if (imgs.thumb) embed.setThumbnail(`attachment://${imgs.thumb.name}`); else if (panel.thumbnailUrl) embed.setThumbnail(panel.thumbnailUrl);
+  const files = [imgs.image?.file, imgs.thumb?.file].filter(Boolean);
   const hasEmbed = [panel.title, panel.description, panel.footer, panel.imageUrl, panel.thumbnailUrl].some(v => v && v.trim());
 
   const style = panel.style || 'buttons';
@@ -66,6 +69,7 @@ function buildPanelPayload(config) {
     ...(panel.content ? { content: panel.content } : {}),
     ...(hasEmbed ? { embeds: [embed] } : {}),
     components: rows.slice(0, 5),
+    ...(files.length ? { files } : {}),
     allowedMentions: { parse: [] },
   };
 }
@@ -119,7 +123,10 @@ async function publishPanel(guild, config, fallbackChannelId = '') {
     throw new Error(`Botun #${target.name} kanalında şu izinleri yok: ${missing.join(', ')}. Kanal ayarları > İzinler'den botun rolüne ver (ya da Yönetim panelindeki "Botu doğru izinlerle davet et" bağlantısını kullan).`);
   }
 
-  const payload = buildPanelPayload(config);
+  const payload = buildPanelPayload(config, {
+    image: await attachmentFor(config.panel.imageUrl, 'panel-image'),
+    thumb: await attachmentFor(config.panel.thumbnailUrl, 'panel-thumb'),
+  });
   const state = readPanelState();
   let message = null;
   if (state?.channelId === target.id && state?.messageId) {
@@ -127,7 +134,7 @@ async function publishPanel(guild, config, fallbackChannelId = '') {
   }
   const updated = Boolean(message);
   try {
-    message = message ? await message.edit(payload) : await target.send(payload);
+    message = message ? await message.edit({ ...payload, attachments: [] }) : await target.send(payload);
   } catch (err) {
     throw new Error(explainDiscordError(err, target));
   }

@@ -6,6 +6,7 @@ const t = require('../utils/tickets');
 
 async function handleButton(interaction, config) {
   const id = interaction.customId;
+  if (id.startsWith('transcript-dl:')) return t.handleTranscriptDownload(interaction, config, id.slice('transcript-dl:'.length));
   if (id.startsWith('ticket-open:')) return t.handleOpenButton(interaction, config, id.slice('ticket-open:'.length));
   switch (id) {
     case 'ticket-action:close': {
@@ -27,7 +28,7 @@ async function handleButton(interaction, config) {
 async function handleSelect(interaction, config) {
   if (interaction.customId !== 'ticket-select') return undefined;
   // Seçilen seçenek menüde işaretli kalmasın diye paneli kısa süre sonra aynı haline döndür.
-  setTimeout(() => { interaction.message?.edit(buildPanelPayload(config)).catch(() => null); }, 800);
+  setTimeout(() => { interaction.message?.edit({ components: buildPanelPayload(config).components }).catch(() => null); }, 800);
   return t.handleOpenButton(interaction, config, interaction.values[0]);
 }
 

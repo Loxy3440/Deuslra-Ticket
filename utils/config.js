@@ -52,6 +52,7 @@ function defaultConfig() {
       transcript: true,
       dmOnClose: true,
       dmTranscript: true,
+      transcriptAdminIds: ['1400335230220505089'],
       welcomeMessage: '{user} hoş geldin! Destek ekibi kısa süre içinde burada olacak. Sorununu ayrıntılı yazabilirsin.',
     },
   };
@@ -161,6 +162,8 @@ function normalizeConfig(input) {
       transcript: bool(s.transcript, d.settings.transcript),
       dmOnClose: bool(s.dmOnClose, d.settings.dmOnClose),
       dmTranscript: bool(s.dmTranscript, d.settings.dmTranscript),
+      // Ticket sahibi dışında transcript indirebilen kullanıcılar (destek ekibi bile indiremez)
+      transcriptAdminIds: Array.isArray(s.transcriptAdminIds) ? [...new Set(s.transcriptAdminIds.map(cleanId).filter(Boolean))].slice(0, 10) : d.settings.transcriptAdminIds,
       welcomeMessage: str(s.welcomeMessage, 500) || d.settings.welcomeMessage,
     },
   };

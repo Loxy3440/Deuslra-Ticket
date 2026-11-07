@@ -239,7 +239,13 @@ function generalPane() {
       check(s, 'pingSupportOnOpen', 'Ticket açılınca destek rollerini etiketle'),
       check(s, 'transcript', 'Kapatma ve silmede transcript (HTML kayıt) oluştur'),
       check(s, 'dmOnClose', 'Ticket kapanınca kullanıcıya DM gönder'),
-      check(s, 'dmTranscript', 'DM\'e transcript dosyasını da ekle')),
+      check(s, 'dmTranscript', 'DM\'e transcript dosyasını da ekle'),
+      (() => {
+        const el = h('input', { type: 'text', placeholder: 'Kullanıcı ID, virgülle ayır' });
+        el.value = (s.transcriptAdminIds || []).join(', ');
+        el.addEventListener('input', () => { s.transcriptAdminIds = el.value.split(/[\s,]+/).filter(Boolean); dirty(); });
+        return field('Transcript indirebilen ek kişiler', el, 'Log kanalındaki "Transcript indir" butonunu sadece ticket sahibi kullanabilir. Destek ekibi bile indiremez; buraya yazdığın kullanıcı ID\'leri hariç.');
+      })()),
     h('div', { class: 'card' }, h('h2', {}, 'Sunucu ID (isteğe bağlı)'),
       field('Sunucu ID', text(cfg, 'guildId', { ph: '.env içindeki DISCORD_GUILD_ID öncelikli' }), '.env dosyasında DISCORD_GUILD_ID varsa o kullanılır.')));
 }
