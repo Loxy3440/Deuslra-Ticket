@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Deuslra Destek</title>
+  <meta name="description" content="Destek talebini Discord'dan aç, ekibimiz sana özel bir kanalda yardımcı olsun.">
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="/theme.js"></script>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="site">
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="logo" href="/">
+      <span class="logo-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v2a2 2 0 0 0 0 4v2a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-2a2 2 0 0 0 0-4z"/><path d="M14 6v2M14 11v2M14 16v2"/></svg></span>
+      <span id="brand">Deuslra Destek</span>
+    </a>
+    <nav class="links" aria-label="Sayfa bölümleri">
+      <a href="#kategoriler">Kategoriler</a>
+      <a href="#nasil">Nasıl çalışır</a>
+      <a href="#durum">Canlı durum</a>
+    </nav>
+    <div class="nav-r">
+      <span class="pill"><i class="dot" id="dot"></i><span id="status">Bağlanıyor…</span></span>
+      <button class="icon-btn" onclick="toggleTheme()" aria-label="Temayı değiştir" title="Açık / koyu tema"><svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+      <a class="btn ghost sm" href="/panel">Yönetim</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="wrap hero">
+    <div class="hero-copy">
+      <p class="eyebrow">Destek merkezi</p>
+      <h1>Sorunun ne olursa olsun, <span class="hl">doğru ekibe</span> tek seçimle ulaş.</h1>
+      <p class="lead">Discord'daki destek panelinden kategorini seç. Sana özel bir kanal açılır, yetkililer orada seninle ilgilenir.</p>
+      <div class="cta">
+        <a class="btn" id="cta" href="#nasil">Destek talebi aç</a>
+        <a class="btn ghost" href="#nasil">Nasıl çalışır?</a>
+      </div>
+      <p class="live-line"><b id="open">–</b> <span>açık talep şu an ekibimizin elinde</span></p>
+    </div>
+
+    <figure class="mock" aria-label="Discord destek paneli önizlemesi">
+      <div class="mock-bar"><i></i><i></i><i></i><span># destek</span></div>
+      <div class="mock-body">
+        <div class="mock-who"><span class="av" id="avatar-box">D</span><b id="mock-bot">Destek Botu</b><em>BOT</em></div>
+        <div class="mock-embed" id="mock-embed">
+          <b id="mock-title">Nasıl yardımcı olabiliriz?</b>
+          <p id="mock-desc"></p>
+          <small id="mock-foot"></small>
+        </div>
+        <div id="mock-ui"></div>
+      </div>
+    </figure>
+  </section>
+
+  <section class="wrap band" id="durum">
+    <div class="band-grid">
+      <div class="num"><strong id="s-open">–</strong><span>Açık talep</span></div>
+      <div class="num"><strong id="s-closed">–</strong><span>Çözülen talep</span></div>
+      <div class="num"><strong id="s-total">–</strong><span>Toplam talep</span></div>
+      <div class="num"><strong id="s-members">–</strong><span>Sunucu üyesi</span></div>
+    </div>
+    <p class="band-note"><span id="gname">Sunucu</span> · bot gecikmesi <b id="s-ping">–</b> · çalışma süresi <b id="s-up">–</b> · her 5 saniyede güncellenir</p>
+  </section>
+
+  <section class="wrap sec" id="kategoriler">
+    <div class="sec-h"><p class="eyebrow">Kategoriler</p><h2>Ne konuda yardım istiyorsun?</h2></div>
+    <div class="cats" id="cats"></div>
+  </section>
+
+  <section class="wrap sec" id="nasil">
+    <div class="sec-h"><p class="eyebrow">Nasıl çalışır</p><h2>Destek almak üç adım</h2></div>
+    <ol class="steps">
+      <li><b>1</b><h3>Kategoriyi seç</h3><p>Discord'daki destek panelinden sorununa uygun butona tıkla ya da açılır listeden seç.</p></li>
+      <li><b>2</b><h3>Kısa formu doldur</h3><p>Bazı kategorilerde birkaç soru çıkar. Konunu anlat ki ekip baştan ne olduğunu bilsin.</p></li>
+      <li><b>3</b><h3>Özel kanalda çöz</h3><p>Sana özel açılan kanalda yetkililerle yazış. İş bitince talep kapanır, kaydı sana DM'den gelir.</p></li>
+    </ol>
+  </section>
+</main>
+
+<footer class="wrap foot"><span id="foot">Deuslra Destek</span><a href="/panel">Yönetim paneli</a></footer>
+<script src="/home.js"></script>
+</body>
+</html>

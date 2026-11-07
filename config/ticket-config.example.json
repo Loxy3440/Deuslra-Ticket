@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "brandName": "Deuslra Destek",
+  "guildId": "",
+  "panel": {
+    "channelId": "",
+    "title": "Nasıl yardımcı olabiliriz?",
+    "content": "",
+    "description": "Destek talebin ekibimize özel bir kanalda oluşturulur. En kısa sürede dönüş yapacağız.",
+    "footer": "Deuslra Destek",
+    "color": "#8B5CF6",
+    "imageUrl": "",
+    "thumbnailUrl": "",
+    "style": "buttons",
+    "placeholder": "Bir kategori seç…"
+  },
+  "ticketCategoryId": "",
+  "logChannelId": "",
+  "supportRoleIds": [],
+  "buttons": [
+    {
+      "id": "genel-destek",
+      "label": "Genel destek",
+      "emoji": "✉️",
+      "color": "primary",
+      "categoryId": "",
+      "formEnabled": true,
+      "formFields": [
+        {
+          "label": "Konu",
+          "placeholder": "Sana nasıl yardımcı olabiliriz?",
+          "required": true
+        }
+      ],
+      "description": ""
+    }
+  ],
+  "actions": {
+    "close": {
+      "label": "Talebi kapat",
+      "emoji": "🔒"
+    },
+    "claim": {
+      "label": "Üzerime al",
+      "emoji": "🙋"
+    },
+    "callStaff": {
+      "label": "Ekibi çağır",
+      "emoji": "📣"
+    }
+  },
+  "settings": {
+    "maxOpenPerUser": 1,
+    "deleteDelaySeconds": 5,
+    "pingSupportOnOpen": true,
+    "transcript": true,
+    "dmOnClose": true,
+    "dmTranscript": true,
+    "welcomeMessage": "{user} hoş geldin! Destek ekibi kısa süre içinde burada olacak. Sorununu ayrıntılı yazabilirsin."
+  }
+}

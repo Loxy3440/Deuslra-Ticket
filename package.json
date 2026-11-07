@@ -1,0 +1,19 @@
+{
+  "name": "deuslra-destek",
+  "version": "1.0.0",
+  "description": "Deuslra Destek: Discord ticket botu + localhost yönetim paneli",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "discord.js": "^14.22.1",
+    "dotenv": "^16.4.5",
+    "mongodb": "^7.8.0"
+  }
+}

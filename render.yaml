@@ -1,0 +1,22 @@
+# Render Blueprint: GitHub'a yükledikten sonra Render > New > Blueprint ile bu repoyu seç.
+services:
+  - type: web
+    name: deuslra-destek
+    runtime: node
+    plan: free            # Ücretsiz plan 15 dk trafik olmazsa uyur; bot kapalı kalmasın diye /healthz'i UptimeRobot ile pingle ya da ücretli plan seç.
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: DISCORD_GUILD_ID
+        sync: false
+      - key: PANEL_PASSWORD
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: MESSAGE_CONTENT_INTENT
+        value: "false"
