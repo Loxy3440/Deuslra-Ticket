@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require('discord.js');
-const { parseTicket } = require('./config');
+const { parseTicket, readConfig, writeConfig } = require('./config');
 const { isStaff } = require('./permissions');
 const { ACTIONS } = require('./commandDefs');
 const { msg, render } = require('./messages');
@@ -20,6 +20,19 @@ function canUse(cmd, member, ticket, userId, config) {
   const staff = isStaff(member, config);
   const owner = Boolean(ticket && ticket.ownerId === userId);
   return { everyone: true, staff, owner, ownerOrStaff: staff || owner }[cmd.permission] ?? false;
+}
+
+// Öncelik düzeyleri: kanal adının başına işaret eklenir
+const PRIORITY_EMOJI = { low: '🟢', normal: '', high: '🟠', urgent: '🔴' };
+const PRIO_STRIP = /^(?:🟢|🟠|🔴)-?/u;
+const PRIO_KEYS = { low: 'priorityLow', normal: 'priorityNormal', high: 'priorityHigh', urgent: 'priorityUrgent' };
+const PRIO_ALIASES = { low: ['low', 'dusuk', 'düşük', '1'], normal: ['normal', '2'], high: ['high', 'yuksek', 'yüksek', '3'], urgent: ['urgent', 'acil', '4'] };
+const priorityLabel = (config, key) => `${PRIORITY_EMOJI[key] ? PRIORITY_EMOJI[key] + ' ' : ''}${msg(config, PRIO_KEYS[key])}`;
+const priorityList = config => Object.keys(PRIO_KEYS).map(k => msg(config, PRIO_KEYS[k])).join(' / ');
+function parsePriority(config, text) {
+  const w = String(text || '').trim().split(/\s+/)[0]?.toLowerCase();
+  if (!w) return null;
+  return Object.keys(PRIO_KEYS).find(k => msg(config, PRIO_KEYS[k]).toLowerCase() === w || PRIO_ALIASES[k].includes(w)) || null;
 }
 
 // Etiketten ya da ID'den kişi bulur
@@ -89,6 +102,37 @@ async function performAction(ctx) {
       await channel.send({ content: msg(config, 'userRemovedChannel', { username: user.username }), allowedMentions: { parse: [] } });
       return say(msg(config, 'userRemovedReply', { username: user.username }));
     }
+    case 'priority': {
+      const key = parsePriority(config, rest);
+      if (!key) return say(msg(config, 'priorityUsage', { list: priorityList(config) }));
+      const base = channel.name.replace(PRIO_STRIP, '');
+      const name = (PRIORITY_EMOJI[key] ? `${PRIORITY_EMOJI[key]}-${base}` : base).slice(0, 100);
+      if (name !== channel.name) {
+        const ok = await Promise.race([channel.setName(name).then(() => true).catch(() => false), sleep(8000).then(() => false)]);
+        if (!ok) return say(msg(config, 'cmdRenameFailed'));
+      }
+      store.upsert(channel.id, { priority: key });
+      return say(msg(config, 'priorityChanged', { priority: priorityLabel(config, key) }));
+    }
+    case 'block': {
+      const target = ctx.targetUser;
+      if (!target) return say(msg(config, 'cmdUserNotFound', { usage: usageOf() }));
+      if (target.id === user.id || target.bot) return say(msg(config, 'blockSelf'));
+      const reason = rest.replace(/<@!?\d+>/g, '').replace(/\b\d{15,25}\b/, '').trim().slice(0, 200);
+      const cur = readConfig();
+      cur.settings.blockedUsers = [...cur.settings.blockedUsers.filter(b => b.id !== target.id), { id: target.id, reason, tag: target.username }];
+      writeConfig(cur);
+      return say(msg(config, 'blockAdded', { username: target.username }));
+    }
+    case 'unblock': {
+      const target = ctx.targetUser;
+      if (!target) return say(msg(config, 'cmdUserNotFound', { usage: usageOf() }));
+      const cur = readConfig();
+      if (!cur.settings.blockedUsers.some(b => b.id === target.id)) return say(msg(config, 'blockNotFound', { username: target.username }));
+      cur.settings.blockedUsers = cur.settings.blockedUsers.filter(b => b.id !== target.id);
+      writeConfig(cur);
+      return say(msg(config, 'blockRemoved', { username: target.username }));
+    }
     case 'rename': {
       const name = rest.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '').slice(0, 100);
       if (!name) return say(msg(config, 'cmdUsage', { usage: usageOf() }));
@@ -153,7 +197,7 @@ async function runCommand({ message, config, cmd, rest }) {
     lastUse.set(key, Date.now());
   }
 
-  const targetUser = ['useradd', 'userremove'].includes(cmd.action) ? await resolveUser(message, rest) : null;
+  const targetUser = ['useradd', 'userremove', 'block', 'unblock'].includes(cmd.action) ? await resolveUser(message, rest) : null;
   const sendReply = async text => {
     const sent = await message.reply({ content: text, allowedMentions: { users: [message.author.id], repliedUser: false } }).catch(() => null);
     const sec = config.commands.replyDeleteSeconds;
@@ -162,4 +206,4 @@ async function runCommand({ message, config, cmd, rest }) {
   return performAction({ config, cmd, channel, guild: message.guild, member: message.member, user: message.author, ticket, rest, targetUser, say, sendReply, usageOf });
 }
 
-module.exports = { findCommand, runCommand, performAction, canUse, lastUse };
+module.exports = { findCommand, runCommand, performAction, canUse, lastUse, priorityLabel };

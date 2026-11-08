@@ -48,6 +48,21 @@ const ACTIONS = {
     desc: 'Ticket sahibi, kategori, durum ve üstlenen kişiyi gösterir.',
     links: 'Sadece yazıyla kullanılır.',
   },
+  priority: {
+    label: 'Ticket önceliğini değiştir', usage: '<düşük|normal|yüksek|acil>', needsTicket: true, perm: 'staff',
+    desc: 'Ticket önceliğini ayarlar; kanal adının başına renkli bir işaret eklenir (🟢 düşük, 🟠 yüksek, 🔴 acil; normalde işaret yok). Öncelik adları "Bot mesajları > Öncelik" bölümünden değişir.',
+    links: 'Butona bağlarsan basınca öncelik listesi açılır. Discord kanal adı değişimini 10 dakikada 2 ile sınırlar.',
+  },
+  block: {
+    label: 'Kişiyi kara listeye ekle', usage: '@kişi [sebep]', needsTicket: false, perm: 'staff',
+    desc: 'Etiketlenen veya ID\'si yazılan kişi artık talep açamaz. Komuttan sonra yazdığın kısım sebep olarak kaydedilir ve kişiye gösterilir.',
+    links: 'Ayarlar sekmesindeki "Kara liste"den de ekleyip çıkarabilirsin. Butona bağlarsan kişi seçtirir.',
+  },
+  unblock: {
+    label: 'Kişiyi kara listeden çıkar', usage: '@kişi', needsTicket: false, perm: 'staff',
+    desc: 'Kara listedeki kişinin tekrar talep açmasına izin verir.',
+    links: 'Ayarlar sekmesindeki "Kara liste"den de yapılabilir.',
+  },
   help: {
     label: 'Komut listesi', usage: '', needsTicket: false, perm: 'everyone',
     desc: 'Yazan kişinin kullanabildiği komutları ve açıklamalarını listeler.',
@@ -83,6 +98,9 @@ const DEFAULT_COMMANDS = [
   mk('userremove', 'userremove', { description: 'Ticket\'tan kişi çıkarır' }),
   mk('rename', 'rename', { description: 'Kanalı yeniden adlandırır' }),
   mk('ticketinfo', 'ticketinfo', { description: 'Ticket bilgisini gösterir' }),
+  mk('priority', 'priority', { description: 'Ticket önceliğini değiştirir' }),
+  mk('block', 'block', { description: 'Kişiyi kara listeye ekler' }),
+  mk('unblock', 'unblock', { description: 'Kişiyi kara listeden çıkarır' }),
   mk('help', 'help', { description: 'Kullanabildiğin komutları listeler' }),
 ];
 

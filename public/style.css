@@ -133,7 +133,7 @@ input[type=color]{width:48px;height:40px;padding:2px;border-radius:10px;border:1
 .pane>.card,.split .card{margin-bottom:16px}
 .pane h2{margin:0 0 4px;font-size:20px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
-.cards4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
+.cards4{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:16px}
 .stat .lbl{font-size:13px;color:var(--muted)}
 .stat strong{display:block;font-family:var(--display);font-size:32px;letter-spacing:-.03em;margin-top:6px}
 .tablewrap{overflow-x:auto}

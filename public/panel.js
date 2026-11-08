@@ -183,11 +183,11 @@ function overviewPane() {
     try {
       const d = await api('admin/tickets');
       const c = d.counts;
-      stats.replaceChildren(...[['Açık ticket', c.open], ['Kapatılan', c.closed], ['Toplam açılan', c.total], ['Kayıtlı', d.tickets.length]]
+      stats.replaceChildren(...[['Açık ticket', c.open], ['Kapatılan', c.closed], ['Toplam açılan', c.total], ['Kayıtlı', d.tickets.length], ['Ort. puan', c.ratings ? `${c.ratingAvg} ⭐ (${c.ratings})` : '—']]
         .map(([l, v]) => h('div', { class: 'card stat' }, h('div', { class: 'lbl' }, l), h('strong', {}, v))));
       if (!d.tickets.length) { body.replaceChildren(h('div', { class: 'empty' }, 'Henüz ticket yok. Yukarıdaki kurulum maddeleri tamamsa alttaki çubuktan "Kaydet ve Discord\'a gönder"e bas.')); return; }
       body.replaceChildren(h('table', {},
-        h('thead', {}, h('tr', {}, ['#', 'Kullanıcı', 'Kategori', 'Durum', 'Üstlenen', 'Açılış', ''].map(x => h('th', {}, x)))),
+        h('thead', {}, h('tr', {}, ['#', 'Kullanıcı', 'Kategori', 'Durum', 'Üstlenen', 'Puan', 'Açılış', ''].map(x => h('th', {}, x)))),
         h('tbody', {}, d.tickets.map(t => {
           const gone = !t.exists && t.status !== 'deleted';
           const acts = h('div', { class: 'acts' });
@@ -200,7 +200,7 @@ function overviewPane() {
           return h('tr', {},
             h('td', {}, `#${pad(t.number)}`), h('td', {}, t.ownerTag || t.ownerId), h('td', {}, t.buttonLabel || '—'),
             h('td', {}, h('span', { class: `st ${gone ? 'deleted' : t.status}` }, gone ? 'kanal yok' : { open: 'Açık', closed: 'Kapalı', deleted: 'Silindi' }[t.status] || t.status)),
-            h('td', {}, t.claimedByTag || '—'), h('td', { title: new Date(t.createdAt).toLocaleString('tr-TR') }, ago(t.createdAt)), h('td', {}, acts));
+            h('td', {}, t.claimedByTag || '—'), h('td', {}, t.rating ? `${t.rating} ⭐` : '—'), h('td', { title: new Date(t.createdAt).toLocaleString('tr-TR') }, ago(t.createdAt)), h('td', {}, acts));
         }))));
     } catch (e) { body.replaceChildren(h('div', { class: 'empty' }, e.message)); }
   }
@@ -214,6 +214,32 @@ function overviewPane() {
           h('button', { class: 'btn ghost sm', onclick: load }, 'Yenile'),
           h('button', { class: 'btn sm', onclick: e => act(e.target, saveAndPublish) }, 'Kaydet ve Discord\'a gönder'))),
       body));
+}
+
+// Kara liste düzenleyici: kullanıcı ID + sebep
+function blockedEditor() {
+  const list = h('div', {});
+  const draw = () => {
+    const arr = cfg.settings.blockedUsers;
+    list.replaceChildren(...arr.map((b, i) => {
+      const reason = h('input', { type: 'text', placeholder: 'Sebep (kişiye gösterilir)', maxlength: 200 }); reason.value = b.reason || '';
+      reason.addEventListener('input', () => { b.reason = reason.value; dirty(); });
+      return h('div', { class: 'grid2', style: 'align-items:end;margin-bottom:8px' },
+        field(b.tag ? `Kullanıcı: ${b.tag}` : 'Kullanıcı ID', h('input', { type: 'text', value: b.id, disabled: true })),
+        h('div', { style: 'display:flex;gap:8px;align-items:end' }, h('div', { style: 'flex:1' }, field('Sebep', reason)),
+          h('button', { class: 'btn danger sm', onclick: () => { arr.splice(i, 1); dirty(); draw(); } }, 'Çıkar')));
+    }));
+    if (!arr.length) list.append(h('p', { class: 'hint' }, 'Kara listede kimse yok.'));
+  };
+  draw();
+  const idEl = h('input', { type: 'text', placeholder: 'Kullanıcı ID (örn. 123456789012345678)' });
+  const add = h('button', { class: 'btn sm', onclick: () => {
+    const id = idEl.value.trim();
+    if (!/^\d{15,25}$/.test(id)) return toast('Geçerli bir kullanıcı ID yaz (15-25 rakam).', 'err');
+    if (cfg.settings.blockedUsers.some(b => b.id === id)) return toast('Bu kişi zaten listede.', 'err');
+    cfg.settings.blockedUsers.push({ id, reason: '', tag: '' }); idEl.value = ''; dirty(); draw();
+  } }, 'Kara listeye ekle');
+  return h('div', {}, list, h('div', { style: 'display:flex;gap:8px;margin-top:8px' }, idEl, add));
 }
 
 function generalPane() {
@@ -262,6 +288,16 @@ function generalPane() {
         el.addEventListener('input', () => { s.transcriptAdminIds = el.value.split(/[\s,]+/).filter(Boolean); dirty(); });
         return field('Transcript indirebilen ek kişiler', el, 'Log kanalındaki "Transcript indir" butonunu sadece ticket sahibi kullanabilir. Destek ekibi bile indiremez; buraya yazdığın kullanıcı ID\'leri hariç.');
       })()),
+    h('div', { class: 'card' }, h('h2', {}, 'Talep açma ve kara liste'),
+      check(s, 'ticketsEnabled', 'Yeni talep açılabilsin (kapatırsan herkese "şu an talep alınmıyor" yazar; açık talepler etkilenmez)'),
+      h('p', { class: 'hint', style: 'margin:10px 0' }, 'Kara listedeki kişiler talep açamaz ve sebebi görür. Discord\'da .block @kişi sebep yazarak da ekleyebilirsin (Komutlar sekmesinden "Kişiyi kara listeye ekle" eylemini bir komuta bağla).'),
+      blockedEditor()),
+    h('div', { class: 'card' }, h('h2', {}, 'Puanlama ve hareketsiz talepler'),
+      check(s, 'ratingEnabled', 'Talep kapanınca kullanıcıya DM ile 1-5 yıldız puan butonları gönder (puan log kanalına düşer; DM kapalıysa gönderilemez)'),
+      check(s, 'inactivityEnabled', 'Hareketsiz talepleri otomatik uyar ve kapat'),
+      h('div', { class: 'grid2' },
+        field('Kaç saat yazışma olmayınca uyarsın?', num(s, 'inactivityWarnHours', 1, 720)),
+        field('Uyarıdan kaç saat sonra kapatsın?', num(s, 'inactivityCloseHours', 1, 720), 'Bu sürede biri yazarsa sayaç sıfırlanır. Bot her 10 dakikada bir kontrol eder; yeniden başlatılırsa uyarı sayacı sıfırlanır.'))),
     h('div', { class: 'card' }, h('h2', {}, 'Sunucu ID (isteğe bağlı)'),
       field('Sunucu ID', text(cfg, 'guildId', { ph: '.env içindeki DISCORD_GUILD_ID öncelikli' }), '.env dosyasında DISCORD_GUILD_ID varsa o kullanılır.')));
 }

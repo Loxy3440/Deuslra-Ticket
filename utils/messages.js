@@ -96,6 +96,36 @@ const MESSAGE_DEFS = [
   D('helpTitle', 'Yazıyla komutlar', 'Komut listesi başlığı', 'Kullanabildiğin komutlar'),
   D('helpEmpty', 'Yazıyla komutlar', 'Kullanabildiği komut yoksa', 'Şu an kullanabileceğin bir komut yok.'),
 
+  // ---- Kara liste ve kapalı talep ----
+  D('ticketsDisabled', 'Talep açmayı kapatma ve kara liste', 'Talep açma kapalıyken (bakım modu)', 'Şu an yeni talep alınmıyor. Lütfen daha sonra tekrar dene.'),
+  D('blockedUser', 'Talep açmayı kapatma ve kara liste', 'Kara listedeki kişi talep açmaya çalışırsa', 'Talep açman engellenmiş. Sebep: {reason}', ['reason']),
+  D('blockNoReason', 'Talep açmayı kapatma ve kara liste', 'Sebep yazılmadıysa kullanılan yazı', 'Sebep belirtilmedi'),
+  D('blockAdded', 'Talep açmayı kapatma ve kara liste', 'Biri kara listeye eklenince cevap', '{username} kara listeye eklendi; artık talep açamaz.', ['username']),
+  D('blockRemoved', 'Talep açmayı kapatma ve kara liste', 'Biri kara listeden çıkarılınca cevap', '{username} kara listeden çıkarıldı.', ['username']),
+  D('blockNotFound', 'Talep açmayı kapatma ve kara liste', 'Kişi kara listede değilse', '{username} zaten kara listede değil.', ['username']),
+  D('blockSelf', 'Talep açmayı kapatma ve kara liste', 'Kendini veya botu engellemeye çalışınca', 'Bu kişi kara listeye eklenemez.'),
+
+  // ---- Puanlama ----
+  D('ratingTitle', 'Puanlama', 'DM\'deki puanlama başlığı', 'Destekten memnun kaldın mı?'),
+  D('ratingDescription', 'Puanlama', 'DM\'deki puanlama açıklaması', 'Aşağıdan 1 ile 5 arasında puan verebilirsin.', [], { multi: true }),
+  D('ratingThanks', 'Puanlama', 'Puan verilince teşekkür yazısı', 'Teşekkürler! {stars} puanın kaydedildi.', ['stars', 'rating']),
+  D('ratingAlready', 'Puanlama', 'Zaten puan verilmişse', 'Bu talep için zaten puan verdin.'),
+  D('ratingLogTitle', 'Puanlama', 'Log kanalındaki puan başlığı', 'Talep #{number} puanlandı', ['number']),
+  D('fieldRating', 'Puanlama', 'Puan alanı adı', 'Puan'),
+
+  // ---- Hareketsiz talepler ----
+  D('inactivityWarn', 'Hareketsiz talepler', 'Uyarı mesajı (kanala yazılır)', '{user} bu talepte uzun süredir yazışma yok. {hours} saat içinde cevap gelmezse talep otomatik kapatılacak.', ['user', 'hours']),
+  D('inactivityReason', 'Hareketsiz talepler', 'Otomatik kapatma sebebi', 'Uzun süre hareketsiz kaldığı için otomatik kapatıldı.'),
+
+  // ---- Öncelik ----
+  D('priorityLow', 'Öncelik', 'Düşük öncelik adı', 'düşük', [], { max: 20 }),
+  D('priorityNormal', 'Öncelik', 'Normal öncelik adı', 'normal', [], { max: 20 }),
+  D('priorityHigh', 'Öncelik', 'Yüksek öncelik adı', 'yüksek', [], { max: 20 }),
+  D('priorityUrgent', 'Öncelik', 'Acil öncelik adı', 'acil', [], { max: 20 }),
+  D('priorityChanged', 'Öncelik', 'Öncelik değişince cevap', 'Talebin önceliği **{priority}** yapıldı.', ['priority']),
+  D('priorityUsage', 'Öncelik', 'Öncelik yazılmadıysa', 'Bir öncelik yaz: {list}', ['list']),
+  D('priorityPrompt', 'Öncelik', 'Butonla öncelik seçtirirken yazı', 'Öncelik seç:'),
+
   // ---- Ek butonlar ----
   D('renameModalTitle', 'Ek butonlar', 'Yeniden adlandırma penceresi başlığı (en fazla 45)', 'Kanalı yeniden adlandır', [], { max: 45 }),
   D('renameModalLabel', 'Ek butonlar', 'Yeni ad kutusu adı (en fazla 45)', 'Yeni kanal adı', [], { max: 45 }),

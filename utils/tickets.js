@@ -5,7 +5,7 @@ const {
 const store = require('./store');
 const db = require('./db');
 const { attachmentFor } = require('./media');
-const { buildTicketTopic, parseTicket } = require('./config');
+const { buildTicketTopic, parseTicket, getGuildId } = require('./config');
 const { isStaff } = require('./permissions');
 const { buildOpenRows, buildClosedRows } = require('./panel');
 const { buildTranscript } = require('./transcript');
@@ -115,6 +115,9 @@ const transcriptRow = (config, key) => (key ? [new ActionRowBuilder().addCompone
 /* ------------------------------------------------------------------ */
 
 async function openTicket({ guild, user, config, button, answers = [] }) {
+  if (!config.settings.ticketsEnabled) return { error: msg(config, 'ticketsDisabled') };
+  const blocked = config.settings.blockedUsers.find(b => b.id === user.id);
+  if (blocked) return { error: msg(config, 'blockedUser', { reason: blocked.reason || msg(config, 'blockNoReason') }) };
   const mine = [...guild.channels.cache.values()].filter(ch => {
     const t = parseTicket(ch);
     return t && t.ownerId === user.id && t.status === 'open';
@@ -224,7 +227,9 @@ async function closeTicket({ channel, config, actor, reason }) {
       dmSent = await owner.send({
         embeds: [new EmbedBuilder().setColor(config.colors.warning).setTitle(msg(config, 'dmClosedTitle', { number: pad(t.number) }).slice(0, 256))
           .setDescription(msg(config, 'dmClosedDescription', { server: guild.name }))
-          .addFields({ name: msg(config, 'fieldReason'), value: why }).setFooter({ text: config.brandName })],
+          .addFields({ name: msg(config, 'fieldReason'), value: why }).setFooter({ text: config.brandName }),
+          ...(config.settings.ratingEnabled ? [new EmbedBuilder().setColor(config.colors.main).setTitle(msg(config, 'ratingTitle').slice(0, 256)).setDescription(msg(config, 'ratingDescription'))] : [])],
+        components: config.settings.ratingEnabled ? [ratingRow(channel.id)] : [],
         files: config.settings.dmTranscript ? attach(transcript) : [],
       }).then(() => true).catch(() => false);
     }
@@ -396,6 +401,35 @@ async function handleClose(interaction, config, reason) {
   return replyPrivate(interaction, msg(config, res.dmSent ? 'closeReplyDm' : 'closeReplyNoDm') + note);
 }
 
+// DM'deki 1-5 puan butonları
+const ratingRow = channelId => new ActionRowBuilder().addComponents(
+  [1, 2, 3, 4, 5].map(n => new ButtonBuilder().setCustomId(`ticket-rate:${channelId}:${n}`).setLabel(String(n)).setEmoji('⭐').setStyle(ButtonStyle.Secondary)),
+);
+
+async function handleRating(interaction, config, channelId, n) {
+  const rec = store.get(channelId);
+  if (!rec || rec.ownerId !== interaction.user.id) return replyPrivate(interaction, msg(config, 'buttonGone'));
+  if (rec.rating) return interaction.update({ components: [] }).catch(() => null);
+  const rating = Math.min(5, Math.max(1, Number(n) || 0));
+  store.upsert(channelId, { rating, ratedAt: Date.now() });
+  const stars = '⭐'.repeat(rating);
+  await interaction.update({
+    embeds: [new EmbedBuilder().setColor(config.colors.success).setDescription(msg(config, 'ratingThanks', { stars, rating: String(rating) })).setFooter({ text: config.brandName })],
+    components: [],
+  });
+  const guild = interaction.client.guilds.cache.get(getGuildId(config)) || interaction.client.guilds.cache.first();
+  if (guild) {
+    await logEvent(guild, config, {
+      title: msg(config, 'ratingLogTitle', { number: pad(rec.number) }), color: config.colors.success,
+      fields: [
+        { name: msg(config, 'fieldRating'), value: `${stars} (${rating}/5)`, inline: true },
+        { name: msg(config, 'fieldOwner'), value: `<@${rec.ownerId}>`, inline: true },
+      ],
+    });
+  }
+  return undefined;
+}
+
 async function handleTranscriptDownload(interaction, config, key) {
   await interaction.deferReply({ ephemeral: true });
   const doc = await db.getBlob(key).catch(() => null);
@@ -475,6 +509,6 @@ module.exports = {
   PANEL_ACTOR, pad,
   openTicket, closeTicket, reopenTicket, deleteTicket, claimTicket,
   buildCloseModal, handleCloseButton, gateAction, markAction,
-  handleTranscriptDownload, handleOpenButton, handleFormSubmit, handleClose, handleReopen, handleDeleteRequest, handleDelete,
+  handleTranscriptDownload, handleRating, handleOpenButton, handleFormSubmit, handleClose, handleReopen, handleDeleteRequest, handleDelete,
   handleClaim, handleCallStaff, handleAddUser, handleRemoveUser,
 };

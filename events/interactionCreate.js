@@ -9,6 +9,7 @@ const cb = require('../utils/customButtons');
 async function handleButton(interaction, config) {
   const id = interaction.customId;
   if (id.startsWith('transcript-dl:')) return t.handleTranscriptDownload(interaction, config, id.slice('transcript-dl:'.length));
+  if (id.startsWith('ticket-rate:')) { const [, ch, n] = id.split(':'); return t.handleRating(interaction, config, ch, n); }
   if (id.startsWith('ticket-custom:')) return cb.handleCustomButton(interaction, config, id.slice('ticket-custom:'.length));
   if (id.startsWith('ticket-custom-confirm:')) return cb.handleCustomConfirm(interaction, config, id.slice('ticket-custom-confirm:'.length));
   if (id.startsWith('ticket-open:')) return t.handleOpenButton(interaction, config, id.slice('ticket-open:'.length));
@@ -25,6 +26,7 @@ async function handleButton(interaction, config) {
 
 // Açılır listeden kategori seçildiğinde: buton tıklamasıyla aynı akış (form varsa modal, yoksa direkt ticket).
 async function handleSelect(interaction, config) {
+  if (interaction.customId.startsWith('ticket-custom-prio:')) return cb.handleCustomPriority(interaction, config, interaction.customId.slice('ticket-custom-prio:'.length));
   if (interaction.customId !== 'ticket-select') return undefined;
   // Seçilen seçenek menüde işaretli kalmasın diye paneli kısa süre sonra aynı haline döndür.
   setTimeout(() => { interaction.message?.edit({ components: buildPanelPayload(config).components }).catch(() => null); }, 800);

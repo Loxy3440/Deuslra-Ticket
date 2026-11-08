@@ -119,8 +119,9 @@ const handlers = {
 
   'GET tickets': async client => {
     const guild = client.isReady() ? getGuild(client) : null;
+    const rated = store.list().filter(t => t.rating);
     return {
-      counts: liveCounts(client),
+      counts: { ...liveCounts(client), ratings: rated.length, ratingAvg: rated.length ? Math.round(rated.reduce((a, t) => a + t.rating, 0) / rated.length * 10) / 10 : 0 },
       tickets: store.list().slice(0, 200).map(t => {
         const channel = guild?.channels.cache.get(t.channelId);
         return { ...t, exists: Boolean(channel), channelName: channel?.name || '' };

@@ -54,6 +54,12 @@ function defaultConfig() {
     },
     settings: {
       maxOpenPerUser: 1,
+      ticketsEnabled: true,
+      blockedUsers: [],
+      ratingEnabled: true,
+      inactivityEnabled: false,
+      inactivityWarnHours: 24,
+      inactivityCloseHours: 24,
       deleteDelaySeconds: 5,
       pingSupportOnOpen: true,
       transcript: true,
@@ -85,6 +91,19 @@ const cleanChannelFormat = v => {
   const s = String(v ?? '').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_{}-]/g, '').slice(0, 60);
   return s.includes('{number}') ? s : '';
 };
+// Kara liste: talep açamayan kullanıcılar
+function normalizeBlocked(input) {
+  const seen = new Set();
+  const out = [];
+  for (const b of (Array.isArray(input) ? input : [])) {
+    const id = cleanId(typeof b === 'string' ? b : b?.id);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push({ id, reason: typeof b === 'object' ? str(b?.reason, 200) : '', tag: typeof b === 'object' ? str(b?.tag, 60) : '' });
+  }
+  return out.slice(0, 300);
+}
+
 // Ticket kanalındaki ek butonlar: her biri bir eyleme bağlanır (kişi ekle, kapat, özel cevap...)
 function normalizeTicketButtons(input) {
   const raw = Array.isArray(input) ? input : [];
@@ -253,6 +272,12 @@ function normalizeConfig(input) {
     actions: { close: action('close'), claim: action('claim'), callStaff: action('callStaff') },
     settings: {
       maxOpenPerUser: clampInt(s.maxOpenPerUser, 1, 5, d.settings.maxOpenPerUser),
+      ticketsEnabled: bool(s.ticketsEnabled, d.settings.ticketsEnabled),
+      blockedUsers: normalizeBlocked(s.blockedUsers),
+      ratingEnabled: bool(s.ratingEnabled, d.settings.ratingEnabled),
+      inactivityEnabled: bool(s.inactivityEnabled, d.settings.inactivityEnabled),
+      inactivityWarnHours: clampInt(s.inactivityWarnHours, 1, 720, d.settings.inactivityWarnHours),
+      inactivityCloseHours: clampInt(s.inactivityCloseHours, 1, 720, d.settings.inactivityCloseHours),
       deleteDelaySeconds: clampInt(s.deleteDelaySeconds, 0, 60, d.settings.deleteDelaySeconds),
       pingSupportOnOpen: bool(s.pingSupportOnOpen, d.settings.pingSupportOnOpen),
       transcript: bool(s.transcript, d.settings.transcript),

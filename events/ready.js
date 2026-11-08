@@ -1,5 +1,6 @@
 const { ActivityType, Events, REST, Routes } = require('discord.js');
 const { readConfig, getGuildId } = require('../utils/config');
+const { startInactivityWatcher } = require('../utils/inactivity');
 
 module.exports = {
   name: Events.ClientReady,
@@ -15,6 +16,7 @@ module.exports = {
     } catch (err) {
       console.error('[BOT] Komutlar kaydedilemedi:', err.message);
     }
-    client.user.setPresence({ status: 'online', activities: [{ name: '𝑫𝒆𝒖𝒔𝒍𝒓𝒂', type: ActivityType.Streaming, url: 'https://twitch.tv/deuslra' }] });
+    startInactivityWatcher(client);
+    client.user.setPresence({ status: 'online', activities: [{ name: 'destek talepleri', type: ActivityType.Watching }] });
   },
 };

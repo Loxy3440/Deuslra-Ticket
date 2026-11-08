@@ -1,12 +1,12 @@
 const {
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, UserSelectMenuBuilder,
+  ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, UserSelectMenuBuilder, StringSelectMenuBuilder,
 } = require('discord.js');
 const { parseTicket } = require('./config');
 const { isStaff } = require('./permissions');
 const { ACTIONS } = require('./commandDefs');
 const { msg } = require('./messages');
 const { replyPrivate } = require('./replies');
-const { canUse, performAction, lastUse } = require('./commands');
+const { canUse, performAction, lastUse, priorityLabel } = require('./commands');
 const t = require('./tickets');
 
 const unix = ms => Math.floor(ms / 1000);
@@ -60,8 +60,16 @@ async function handleCustomButton(interaction, config, id) {
     }
     case 'rename':
       return interaction.showModal(textModal(`ticket-custom-modal:rename:${def.id}`, msg(config, 'renameModalTitle'), msg(config, 'renameModalLabel'), msg(config, 'renameModalPlaceholder'), true));
+    case 'priority':
+      return interaction.reply({
+        content: msg(config, 'priorityPrompt'), ephemeral: true,
+        components: [new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(`ticket-custom-prio:${def.id}`).setPlaceholder(msg(config, 'priorityPrompt').slice(0, 100))
+          .addOptions(['low', 'normal', 'high', 'urgent'].map(k => ({ label: priorityLabel(config, k).slice(0, 100), value: k }))))],
+      });
     case 'useradd':
     case 'userremove':
+    case 'block':
+    case 'unblock':
       return interaction.reply({
         content: msg(config, 'customUserPrompt'), ephemeral: true,
         components: [new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId(`ticket-custom-user:${def.id}`).setPlaceholder(msg(config, 'customUserPlaceholder').slice(0, 100)).setMinValues(1).setMaxValues(1))],
@@ -92,6 +100,13 @@ async function handleCustomUser(interaction, config, id) {
   return run(interaction, config, p.def, p.ticket, { targetUser: interaction.users.first() || null });
 }
 
+async function handleCustomPriority(interaction, config, id) {
+  const p = await prepare(interaction, config, id);
+  if (!p) return undefined;
+  await interaction.deferUpdate();
+  return run(interaction, config, p.def, p.ticket, { rest: interaction.values[0] });
+}
+
 async function handleCustomConfirm(interaction, config, id) {
   const p = await prepare(interaction, config, id);
   if (!p) return undefined;
@@ -99,4 +114,4 @@ async function handleCustomConfirm(interaction, config, id) {
   return run(interaction, config, p.def, p.ticket);
 }
 
-module.exports = { handleCustomButton, handleCustomModal, handleCustomUser, handleCustomConfirm };
+module.exports = { handleCustomPriority, handleCustomButton, handleCustomModal, handleCustomUser, handleCustomConfirm };
