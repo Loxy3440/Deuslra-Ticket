@@ -7,7 +7,7 @@ const db = require('./db');
 const { attachmentFor } = require('./media');
 const { buildTicketTopic, parseTicket } = require('./config');
 const { isStaff } = require('./permissions');
-const { buildOpenTicketRow, buildClosedTicketRow } = require('./panel');
+const { buildOpenRows, buildClosedRows } = require('./panel');
 const { buildTranscript } = require('./transcript');
 const { replyPrivate } = require('./replies');
 const { msg } = require('./messages');
@@ -175,7 +175,7 @@ async function openTicket({ guild, user, config, button, answers = [] }) {
     content: [`<@${user.id}>`, ...ping.map(id => `<@&${id}>`)].join(' '),
     embeds,
     files: [imgFile?.file, thumbFile?.file].filter(Boolean),
-    components: [buildOpenTicketRow(config)],
+    components: buildOpenRows(config),
     allowedMentions: { users: [user.id], roles: ping },
   });
 
@@ -213,7 +213,7 @@ async function closeTicket({ channel, config, actor, reason }) {
       .addFields({ name: msg(config, 'fieldClosedBy'), value: actor.mention, inline: true }, { name: msg(config, 'fieldReason'), value: why })
       .setDescription(msg(config, 'closedDescription'))
       .setFooter({ text: config.brandName })],
-    components: [buildClosedTicketRow(config)],
+    components: buildClosedRows(config),
     allowedMentions: { parse: [] },
   }).catch(() => null);
 
@@ -256,7 +256,7 @@ async function reopenTicket({ channel, config, actor }) {
     content: t.ownerId ? `<@${t.ownerId}>` : undefined,
     embeds: [new EmbedBuilder().setColor(config.colors.success).setTitle(msg(config, 'reopenedTitle', { number: pad(t.number) }).slice(0, 256))
       .setDescription(msg(config, 'reopenedDescription', { staff: actor.mention })).setFooter({ text: config.brandName })],
-    components: [buildOpenTicketRow(config)],
+    components: buildOpenRows(config),
     allowedMentions: { users: t.ownerId ? [t.ownerId] : [] },
   }).catch(() => null);
   store.upsert(channel.id, { status: 'open', reopenedAt: Date.now(), closedAt: null, closeReason: null });

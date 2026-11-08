@@ -129,7 +129,12 @@ function refreshPreview() {
   refreshTicketPreview();
 }
 
+function ticketBtnRow() {
+  return h('div', { class: 'bt' }, [...['close', 'claim', 'callStaff'].map(k => h('span', { class: cfg.actions[k].color }, `${cfg.actions[k].emoji ? cfg.actions[k].emoji + ' ' : ''}${cfg.actions[k].label}`)),
+    ...(cfg.ticketButtons || []).filter(b => b.enabled && b.where !== 'closed' && b.label).map(b => h('span', { class: b.color }, `${b.emoji ? b.emoji + ' ' : ''}${b.label}`))]);
+}
 function refreshTicketPreview() {
+  if (typeof ticketPreviewEl2 !== 'undefined' && ticketPreviewEl2) ticketPreviewEl2.replaceChildren(h('div', { class: 'dc' }, ticketBtnRow()));
   if (!ticketPreviewEl) return;
   const te = cfg.ticketEmbed, st = cfg.settings;
   const fill = t => String(t || '').replace(/\{user\}/gi, '@kullanıcı').replace(/\{category\}/gi, cfg.buttons[0]?.label || 'Kategori').replace(/\{number\}/gi, '0001');
@@ -140,7 +145,7 @@ function refreshTicketPreview() {
   if (/^https?:\/\//.test(te.imageUrl)) emb.append(h('img', { src: te.imageUrl, alt: '' }));
   emb.append(h('div', { class: 'f' }, te.footer || cfg.brandName));
   ticketPreviewEl.replaceChildren(h('div', { class: 'dc' }, emb,
-    h('div', { class: 'bt' }, ['close', 'claim', 'callStaff'].map(k => h('span', { class: cfg.actions[k].color }, `${cfg.actions[k].emoji ? cfg.actions[k].emoji + ' ' : ''}${cfg.actions[k].label}`)))));
+    ticketBtnRow()));
 }
 
 /* ---------- kurulum kontrol listesi ---------- */
@@ -473,9 +478,81 @@ function commandsPane() {
     h('div', { class: 'card' }, h('h2', {}, 'Hangi eylem neye bağlı?'), h('p', { class: 'hint', style: 'margin-bottom:10px' }, 'Komutlar bu eylemlerden birini çalıştırır; slash komutları ve butonlarla aynı işi yapar.'), table));
 }
 
+/* ---------- ticket içi ek butonlar (bir eyleme bağlı) ---------- */
+function ticketButtonsPane() {
+  cfg.ticketButtons = cfg.ticketButtons || [];
+  const list = h('div', {});
+  const actionIds = Object.keys(schema.actions).filter(a => a !== 'help');
+  const colors = [['primary', 'Mavi'], ['secondary', 'Gri'], ['success', 'Yeşil'], ['danger', 'Kırmızı']];
+
+  function rolePicker(arr) {
+    const box = h('div', { class: 'roles' });
+    const draw = () => box.replaceChildren(...meta.roles.map(r => {
+      const el = h('label', { class: `role ${arr.includes(r.id) ? 'on' : ''}` }, h('i', {}), r.name);
+      el.firstChild.style.background = r.color && r.color !== '#000000' ? r.color : '#99aab5';
+      el.addEventListener('click', e => { e.preventDefault(); const i = arr.indexOf(r.id); if (i >= 0) arr.splice(i, 1); else arr.push(r.id); dirty(); draw(); });
+      return el;
+    }));
+    draw();
+    return box;
+  }
+
+  function draw() {
+    list.replaceChildren(...cfg.ticketButtons.map((b, i) => {
+      const desc = h('p', { class: 'hint' });
+      const respField = field('Cevap metni', text(b, 'response', { multi: true, rows: 3, max: 1500 }), 'Butona basınca bu yazı ticket kanalına yazılır. {user} {username} {server} {channel} {number} yazabilirsin.');
+      const upd = () => {
+        const a = schema.actions[b.action] || {};
+        desc.textContent = `${a.desc || ''}`;
+        respField.style.display = b.action === 'reply' ? '' : 'none';
+        refreshTicketPreview();
+      };
+      const labelEl = text(b, 'label', { max: 80, ph: 'Kişi ekle' }); labelEl.addEventListener('input', refreshTicketPreview);
+      const emojiEl = text(b, 'emoji', { max: 64, ph: '➕' }); emojiEl.addEventListener('input', refreshTicketPreview);
+      const colSel = h('select', {}, colors.map(([v, l]) => h('option', { value: v }, l))); colSel.value = b.color;
+      colSel.addEventListener('change', () => { b.color = colSel.value; dirty(); refreshTicketPreview(); });
+      const actSel = h('select', {}, actionIds.map(a => h('option', { value: a }, schema.actions[a].label))); actSel.value = b.action;
+      const whereSel = h('select', {}, [['open', 'Açık ticketlarda'], ['closed', 'Kapalı ticketlarda'], ['both', 'İkisinde de']].map(([v, l]) => h('option', { value: v }, l))); whereSel.value = b.where;
+      whereSel.addEventListener('change', () => { b.where = whereSel.value; dirty(); });
+      const permSel = h('select', {}, Object.entries(schema.permissions).map(([v, l]) => h('option', { value: v }, l))); permSel.value = b.permission;
+      permSel.addEventListener('change', () => { b.permission = permSel.value; dirty(); });
+      actSel.addEventListener('change', () => { b.action = actSel.value; b.permission = schema.actions[b.action].perm; permSel.value = b.permission; dirty(); upd(); });
+      const enChk = h('input', { type: 'checkbox', checked: b.enabled }); enChk.addEventListener('change', () => { b.enabled = enChk.checked; dirty(); refreshTicketPreview(); });
+      const move = d => { const j = i + d; if (j < 0 || j >= cfg.ticketButtons.length) return; [cfg.ticketButtons[i], cfg.ticketButtons[j]] = [cfg.ticketButtons[j], cfg.ticketButtons[i]]; dirty(); draw(); };
+      upd();
+      return h('div', { class: 'bcard' },
+        h('div', { class: 'bhead' }, h('div', {}, h('b', {}, `${b.emoji ? b.emoji + ' ' : ''}${b.label || 'Yeni buton'}`)),
+          h('div', { class: 'acts' },
+            h('label', { class: 'chk', style: 'margin:0' }, enChk, 'Açık'),
+            h('button', { class: 'btn ghost sm', onclick: () => move(-1) }, '↑'), h('button', { class: 'btn ghost sm', onclick: () => move(1) }, '↓'),
+            h('button', { class: 'btn danger sm', onclick: () => { if (confirm(`"${b.label}" butonu silinsin mi?`)) { cfg.ticketButtons.splice(i, 1); dirty(); draw(); refreshTicketPreview(); } } }, 'Sil'))),
+        h('div', { class: 'grid2' },
+          field('Buton yazısı', labelEl), field('Emoji', emojiEl),
+          field('Rengi', colSel), field('Nerede görünsün?', whereSel),
+          field('Basınca ne yapsın?', actSel), field('Kimler basabilsin?', permSel),
+          field('Bekleme süresi (saniye)', num(b, 'cooldownSeconds', 0, 86400), 'Bu ticket kanalında buton başına; 0 = sınırsız.')),
+        desc,
+        field('Ek yetkili roller', rolePicker(b.roleIds), 'Seçilen roller yukarıdaki kuraldan bağımsız bu butonu kullanabilir.'),
+        respField);
+    }));
+  }
+  draw();
+
+  return h('div', { class: 'pane', id: 'pane-ticketbtn' },
+    h('div', { class: 'card' },
+      h('div', { class: 'bhead' }, h('div', {}, h('h2', {}, 'Talep içi ek butonlar'),
+        h('p', { class: 'hint' }, 'Ticket kanalındaki mesajda Kapat / Üstlen / Ekibi çağır butonlarının altına kendi butonlarını ekle. Her buton bir eyleme bağlanır: örneğin "Kişi ekle" butonu useradd işini yapar; basınca kişi seçtirir.')),
+        h('button', { class: 'btn sm', onclick: () => { if (cfg.ticketButtons.length >= 20) return toast('En fazla 20 ek buton.', 'err'); cfg.ticketButtons.push({ id: '', label: '', emoji: '', color: 'secondary', action: 'useradd', where: 'open', enabled: true, permission: schema.actions.useradd.perm, roleIds: [], cooldownSeconds: 0, response: '' }); dirty(); draw(); } }, '+ Buton ekle')),
+      list,
+      h('p', { class: 'hint' }, 'Kaydettikten sonra yeni açılan ticketlarda görünür. Zaten açık olan ticketlarda buton, mesaj yenilenene kadar eski haliyle kalır.')),
+    h('div', { class: 'card' }, h('h2', {}, 'Önizleme'), (ticketPreviewEl2 = h('div', {}))));
+}
+let ticketPreviewEl2;
+
 /* ---------- ana iskelet ---------- */
 function showApp() {
   const tabs = [['overview', '📊', 'Genel bakış', overviewPane], ['general', '⚙️', 'Ayarlar', generalPane], ['look', '🎨', 'Panel görünümü', appearancePane], ['buttons', '🎫', 'Kategoriler & formlar', buttonsPane],
+    ['ticketbtn', '🔘', 'Talep butonları', ticketButtonsPane],
     ['commands', '⌨️', 'Komutlar', commandsPane],
     ['messages', '💬', 'Bot mesajları', () => textsPane('messages', 'Bot mesajları', 'Botun ticket açarken, kapatırken, silerken, DM\'de ve logda yazdığı bütün yazılar. {süslü} kısımlar otomatik doldurulur. Kutuyu boş bırakırsan varsayılan yazı kullanılır.', schema.messages, cfg.messages)],
     ['site', '🌐', 'Site yazıları', () => textsPane('site', 'Site yazıları', 'Ana sayfadaki bütün başlıklar, açıklamalar ve düğme yazıları.', schema.site, cfg.site)]];

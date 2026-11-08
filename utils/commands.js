@@ -30,33 +30,14 @@ async function resolveUser(message, rest) {
   return id ? message.client.users.fetch(id).catch(() => null) : null;
 }
 
-async function runCommand({ message, config, cmd, rest }) {
-  const meta = ACTIONS[cmd.action];
+// Ortak eylem yürütücü: yazıyla komutlar ve ticket içi butonlar aynı kodu kullanır.
+// ctx: { config, cmd (action/name/response...), channel, guild, member, user, ticket, rest, targetUser, say, sendReply, usageOf }
+async function performAction(ctx) {
+  const { config, cmd, channel, guild, member, user, ticket, rest = '', say } = ctx;
   const prefix = config.commands.prefix;
-  const usageOf = () => `${prefix}${cmd.name}${meta.usage ? ` ${meta.usage}` : ''}`;
-  const channel = message.channel;
-  const ticket = parseTicket(channel);
-
-  // Cevaplar komutun yazıldığı mesaja yanıt olarak gider; istenirse bir süre sonra silinir.
-  const say = async (content, extra = {}) => {
-    const sent = await message.reply({ content, allowedMentions: { repliedUser: false, parse: [] }, ...extra }).catch(() => null);
-    const sec = config.commands.replyDeleteSeconds;
-    if (sent && sec > 0) setTimeout(() => sent.delete().catch(() => null), sec * 1000);
-    return sent;
-  };
-
-  if ((cmd.ticketOnly || meta.needsTicket) && !ticket) return say(msg(config, 'cmdOnlyTicket'));
-  if (!canUse(cmd, message.member, ticket, message.author.id, config)) return say(msg(config, 'cmdNoPermission'));
-
-  if (cmd.cooldownSeconds) {
-    const key = `${cmd.id}:${message.author.id}`;
-    const left = (lastUse.get(key) || 0) + cmd.cooldownSeconds * 1000 - Date.now();
-    if (left > 0) return say(msg(config, 'cmdWait', { time: `<t:${unix(Date.now() + left)}:R>` }));
-    lastUse.set(key, Date.now());
-  }
-
-  const actor = { id: message.author.id, label: message.author.username, mention: `<@${message.author.id}>` };
-  const staff = isStaff(message.member, config);
+  const usageOf = ctx.usageOf || (() => '');
+  const actor = { id: user.id, label: user.username, mention: `<@${user.id}>` };
+  const staff = isStaff(member, config);
   const pad = t.pad;
 
   switch (cmd.action) {
@@ -86,14 +67,14 @@ async function runCommand({ message, config, cmd, rest }) {
     }
     case 'callstaff': {
       if (ticket.status !== 'open') return say(msg(config, 'ticketClosed'));
-      const roleIds = config.supportRoleIds.filter(id => message.guild.roles.cache.has(id));
+      const roleIds = config.supportRoleIds.filter(id => guild.roles.cache.has(id));
       if (!roleIds.length) return say(msg(config, 'callStaffNoRole'));
       await channel.send({ content: msg(config, 'callStaffMessage', { roles: roleIds.map(id => `<@&${id}>`).join(' ') }), allowedMentions: { roles: roleIds } });
       return say(msg(config, 'callStaffReply'));
     }
     case 'useradd': {
       if (ticket.status !== 'open') return say(msg(config, 'ticketClosed'));
-      const user = await resolveUser(message, rest);
+      const user = ctx.targetUser;
       if (!user) return say(msg(config, 'cmdUserNotFound', { usage: usageOf() }));
       await channel.permissionOverwrites.edit(user.id, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true, AttachFiles: true, EmbedLinks: true });
       await channel.send({ content: msg(config, 'userAddedChannel', { user: `${user}` }), allowedMentions: { users: [user.id] } });
@@ -101,7 +82,7 @@ async function runCommand({ message, config, cmd, rest }) {
     }
     case 'userremove': {
       if (ticket.status !== 'open') return say(msg(config, 'ticketClosed'));
-      const user = await resolveUser(message, rest);
+      const user = ctx.targetUser;
       if (!user) return say(msg(config, 'cmdUserNotFound', { usage: usageOf() }));
       if (ticket.ownerId === user.id) return say(msg(config, 'cannotRemoveOwner'));
       await channel.permissionOverwrites.delete(user.id).catch(() => null);
@@ -130,7 +111,7 @@ async function runCommand({ message, config, cmd, rest }) {
     }
     case 'help': {
       const lines = config.commands.list
-        .filter(c => c.enabled && c.action !== 'help' && canUse(c, message.member, ticket, message.author.id, config) && (!c.ticketOnly || ticket))
+        .filter(c => c.enabled && c.action !== 'help' && canUse(c, member, ticket, user.id, config) && (!c.ticketOnly || ticket))
         .map(c => `**${prefix}${c.name}** ${ACTIONS[c.action].usage ? `\`${ACTIONS[c.action].usage}\` ` : ''}${c.description ? `— ${c.description}` : ''}`);
       if (!lines.length) return say(msg(config, 'helpEmpty'));
       const embed = new EmbedBuilder().setColor(config.colors.main).setTitle(msg(config, 'helpTitle').slice(0, 256)).setDescription(lines.join('\n').slice(0, 4000)).setFooter({ text: config.brandName });
@@ -138,16 +119,47 @@ async function runCommand({ message, config, cmd, rest }) {
     }
     case 'reply': {
       const text = render(cmd.response, {
-        user: `<@${message.author.id}>`, username: message.author.username, server: message.guild.name,
+        user: `<@${user.id}>`, username: user.username, server: guild.name,
         channel: `${channel}`, number: ticket ? pad(ticket.number) : '', prefix,
       });
-      const sent = await message.reply({ content: text.slice(0, 2000), allowedMentions: { users: [message.author.id], repliedUser: false } }).catch(() => null);
-      const sec = config.commands.replyDeleteSeconds;
-      if (sent && sec > 0) setTimeout(() => sent.delete().catch(() => null), sec * 1000);
-      return undefined;
+      return ctx.sendReply(text.slice(0, 2000));
     }
     default: return undefined;
   }
 }
 
-module.exports = { findCommand, runCommand };
+async function runCommand({ message, config, cmd, rest }) {
+  const meta = ACTIONS[cmd.action];
+  const prefix = config.commands.prefix;
+  const usageOf = () => `${prefix}${cmd.name}${meta.usage ? ` ${meta.usage}` : ''}`;
+  const channel = message.channel;
+  const ticket = parseTicket(channel);
+
+  // Cevaplar komutun yazıldığı mesaja yanıt olarak gider; istenirse bir süre sonra silinir.
+  const say = async (content, extra = {}) => {
+    const sent = await message.reply({ content, allowedMentions: { repliedUser: false, parse: [] }, ...extra }).catch(() => null);
+    const sec = config.commands.replyDeleteSeconds;
+    if (sent && sec > 0) setTimeout(() => sent.delete().catch(() => null), sec * 1000);
+    return sent;
+  };
+
+  if ((cmd.ticketOnly || meta.needsTicket) && !ticket) return say(msg(config, 'cmdOnlyTicket'));
+  if (!canUse(cmd, message.member, ticket, message.author.id, config)) return say(msg(config, 'cmdNoPermission'));
+
+  if (cmd.cooldownSeconds) {
+    const key = `${cmd.id}:${message.author.id}`;
+    const left = (lastUse.get(key) || 0) + cmd.cooldownSeconds * 1000 - Date.now();
+    if (left > 0) return say(msg(config, 'cmdWait', { time: `<t:${unix(Date.now() + left)}:R>` }));
+    lastUse.set(key, Date.now());
+  }
+
+  const targetUser = ['useradd', 'userremove'].includes(cmd.action) ? await resolveUser(message, rest) : null;
+  const sendReply = async text => {
+    const sent = await message.reply({ content: text, allowedMentions: { users: [message.author.id], repliedUser: false } }).catch(() => null);
+    const sec = config.commands.replyDeleteSeconds;
+    if (sent && sec > 0) setTimeout(() => sent.delete().catch(() => null), sec * 1000);
+  };
+  return performAction({ config, cmd, channel, guild: message.guild, member: message.member, user: message.author, ticket, rest, targetUser, say, sendReply, usageOf });
+}
+
+module.exports = { findCommand, runCommand, performAction, canUse, lastUse };

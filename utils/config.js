@@ -44,6 +44,7 @@ function defaultConfig() {
     colors: { main: '#8B5CF6', success: '#22C55E', warning: '#F59E0B', danger: '#EF4444' },
     messages: {},
     site: {},
+    ticketButtons: [],
     commands: { enabled: true, prefix: '.', deleteInvocation: false, replyDeleteSeconds: 0, list: DEFAULT_COMMANDS },
     ticketEmbed: { title: 'Ticket #{number} · {category}', color: '#8B5CF6', footer: '', imageUrl: '', thumbnailUrl: '', showDetails: true },
     actions: {
@@ -84,6 +85,34 @@ const cleanChannelFormat = v => {
   const s = String(v ?? '').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_{}-]/g, '').slice(0, 60);
   return s.includes('{number}') ? s : '';
 };
+// Ticket kanalındaki ek butonlar: her biri bir eyleme bağlanır (kişi ekle, kapat, özel cevap...)
+function normalizeTicketButtons(input) {
+  const raw = Array.isArray(input) ? input : [];
+  if (raw.length > 20) throw new ConfigError('En fazla 20 ek buton olabilir.');
+  const used = new Set();
+  return raw.map((b, i) => {
+    const action = ACTIONS[b?.action] ? b.action : 'reply';
+    const label = str(b?.label, 80);
+    if (!label) throw new ConfigError(`${i + 1}. ek butonun adı boş olamaz.`);
+    let id = slug(b?.id || label).slice(0, 30) || `buton-${i + 1}`;
+    while (used.has(id)) id = `${id.slice(0, 26)}-${i + 1}`;
+    used.add(id);
+    const response = str(b?.response, 1500);
+    if (action === 'reply' && !response) throw new ConfigError(`"${label}" butonu "Özel cevap" olarak ayarlı ama cevap metni boş.`);
+    return {
+      id, label, emoji: str(b?.emoji, 64),
+      color: BUTTON_COLORS.includes(b?.color) ? b.color : 'secondary',
+      action,
+      where: ['open', 'closed', 'both'].includes(b?.where) ? b.where : 'open',
+      enabled: bool(b?.enabled, true),
+      permission: PERMISSIONS[b?.permission] ? b.permission : ACTIONS[action].perm,
+      roleIds: [...new Set((Array.isArray(b?.roleIds) ? b.roleIds : []).map(cleanId).filter(Boolean))].slice(0, 10),
+      cooldownSeconds: clampInt(b?.cooldownSeconds, 0, 86400, 0),
+      response,
+    };
+  });
+}
+
 // Yazıyla komutlar (.close vb.): adlar benzersiz olmalı, eylem listede olmalı
 const cleanCmdName = (v, prefix) => String(v ?? '').trim().toLowerCase().replace(/\s+/g, '').slice(prefix.length && String(v ?? '').trim().startsWith(prefix) ? prefix.length : 0, 40);
 function normalizeCommands(input, d) {
@@ -218,6 +247,7 @@ function normalizeConfig(input) {
     },
     colors: Object.fromEntries(['main', 'success', 'warning', 'danger'].map(k => [k, cleanColorOr(c.colors?.[k], d.colors[k])])),
     commands: normalizeCommands(c.commands, d.commands),
+    ticketButtons: normalizeTicketButtons(c.ticketButtons),
     messages: normalizeTexts(c.messages, MESSAGE_DEFS),
     site: normalizeTexts(c.site, SITE_DEFS),
     actions: { close: action('close'), claim: action('claim'), callStaff: action('callStaff') },

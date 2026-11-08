@@ -96,6 +96,14 @@ const MESSAGE_DEFS = [
   D('helpTitle', 'Yazıyla komutlar', 'Komut listesi başlığı', 'Kullanabildiğin komutlar'),
   D('helpEmpty', 'Yazıyla komutlar', 'Kullanabildiği komut yoksa', 'Şu an kullanabileceğin bir komut yok.'),
 
+  // ---- Ek butonlar ----
+  D('renameModalTitle', 'Ek butonlar', 'Yeniden adlandırma penceresi başlığı (en fazla 45)', 'Kanalı yeniden adlandır', [], { max: 45 }),
+  D('renameModalLabel', 'Ek butonlar', 'Yeni ad kutusu adı (en fazla 45)', 'Yeni kanal adı', [], { max: 45 }),
+  D('renameModalPlaceholder', 'Ek butonlar', 'Yeni ad ipucu (en fazla 100)', 'örn. odeme-sorunu', [], { max: 100 }),
+  D('customUserPrompt', 'Ek butonlar', 'Kişi seçtirirken yazı', 'Bir kişi seç:'),
+  D('customUserPlaceholder', 'Ek butonlar', 'Kişi seçme kutusu ipucu (en fazla 100)', 'Kişi seç…', [], { max: 100 }),
+  D('customWorking', 'Ek butonlar', 'İşlem sürerken yazı', '⏳ Yapılıyor…'),
+
   // ---- Uyarılar ----
   D('notTicket', 'Uyarılar', 'Komut ticket dışında kullanılırsa', 'Bu komut yalnızca bir ticket kanalında kullanılabilir.'),
   D('ticketClosed', 'Uyarılar', 'Ticket kapalıyken işlem denenirse', 'Bu ticket kapatılmış.'),

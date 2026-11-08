@@ -4,10 +4,13 @@ const { replyPrivate } = require('../utils/replies');
 const { buildPanelPayload } = require('../utils/panel');
 const t = require('../utils/tickets');
 const { msg } = require('../utils/messages');
+const cb = require('../utils/customButtons');
 
 async function handleButton(interaction, config) {
   const id = interaction.customId;
   if (id.startsWith('transcript-dl:')) return t.handleTranscriptDownload(interaction, config, id.slice('transcript-dl:'.length));
+  if (id.startsWith('ticket-custom:')) return cb.handleCustomButton(interaction, config, id.slice('ticket-custom:'.length));
+  if (id.startsWith('ticket-custom-confirm:')) return cb.handleCustomConfirm(interaction, config, id.slice('ticket-custom-confirm:'.length));
   if (id.startsWith('ticket-open:')) return t.handleOpenButton(interaction, config, id.slice('ticket-open:'.length));
   switch (id) {
     case 'ticket-action:close': return t.handleCloseButton(interaction, config);
@@ -38,11 +41,15 @@ module.exports = {
         if (command) await command.execute(interaction, client);
       } else if (interaction.isButton()) {
         await handleButton(interaction, config);
+      } else if (interaction.isUserSelectMenu()) {
+        if (interaction.customId.startsWith('ticket-custom-user:')) await cb.handleCustomUser(interaction, config, interaction.customId.slice('ticket-custom-user:'.length));
       } else if (interaction.isStringSelectMenu()) {
         await handleSelect(interaction, config);
       } else if (interaction.isModalSubmit()) {
         if (interaction.customId === 'ticket-close-submit') {
           await t.handleClose(interaction, config, interaction.fields.getTextInputValue('ticket-close-reason'));
+        } else if (interaction.customId.startsWith('ticket-custom-modal:')) {
+          await cb.handleCustomModal(interaction, config, interaction.customId.slice('ticket-custom-modal:'.length));
         } else if (interaction.customId.startsWith('ticket-form-submit:')) {
           await t.handleFormSubmit(interaction, config, interaction.customId.slice('ticket-form-submit:'.length));
         }

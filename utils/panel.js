@@ -92,6 +92,22 @@ function buildOpenTicketRow(config) {
   return row;
 }
 
+// Ek (özel) butonlar: panelden eklenen, bir eyleme bağlı butonlar. En fazla 4 satır (20 buton).
+function buildCustomRows(config, where) {
+  const list = (config.ticketButtons || []).filter(b => b.enabled && (b.where === 'both' || b.where === where));
+  const rows = [];
+  for (let i = 0; i < list.length && rows.length < 4; i += 5) {
+    const row = new ActionRowBuilder();
+    for (const b of list.slice(i, i + 5)) {
+      row.addComponents(withEmoji(new ButtonBuilder().setCustomId(`ticket-custom:${b.id}`).setLabel(b.label.slice(0, 80)).setStyle(STYLES[b.color] ?? ButtonStyle.Secondary), b.emoji));
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+const buildOpenRows = config => [buildOpenTicketRow(config), ...buildCustomRows(config, 'open')];
+const buildClosedRows = config => [buildClosedTicketRow(config), ...buildCustomRows(config, 'closed')];
+
 // Kapatılmış ticket içindeki butonlar: yeniden aç / sil
 function buildClosedTicketRow(config) {
   return new ActionRowBuilder().addComponents(
@@ -143,4 +159,4 @@ async function publishPanel(guild, config, fallbackChannelId = '') {
   return { channel: target, message, updated, url: `https://discord.com/channels/${guild.id}/${target.id}/${message.id}` };
 }
 
-module.exports = { buildPanelPayload, buildOpenTicketRow, buildClosedTicketRow, publishPanel, withEmoji, explainDiscordError };
+module.exports = { buildPanelPayload, buildOpenTicketRow, buildClosedTicketRow, buildOpenRows, buildClosedRows, publishPanel, withEmoji, explainDiscordError };
