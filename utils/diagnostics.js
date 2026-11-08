@@ -106,6 +106,14 @@ async function runDiagnostics({ client, guild, config }) {
   else if (process.env.RENDER) checks.push(bad('storage', 'Veritabanı', 'Render\'dasın ama MONGODB_URI tanımlı değil; ayarların her yeniden başlatmada silinir.', 'Render > Environment bölümüne MONGODB_URI ekle.'));
   else checks.push(warn('storage', 'Veritabanı', 'Yerel dosyalar kullanılıyor (bilgisayarında sorun değil).', 'Render\'a taşırken MONGODB_URI ekle.'));
 
+  // Yazıyla komutlar (.close vb.) mesaj içeriğini okuyabilmek için Message Content Intent ister
+  if (config.commands.enabled && process.env.MESSAGE_CONTENT_INTENT !== 'true') {
+    checks.push(bad('cmd-intent', 'Yazıyla komutlar (.close vb.)', 'Message Content Intent kapalı olduğu için bot yazılan komutları göremiyor.',
+      'Developer Portal > Bot > "Message Content Intent"i aç, Render/.env ortam değişkenlerine MESSAGE_CONTENT_INTENT=true ekle, botu yeniden başlat. (Slash komutları bundan etkilenmez.)'));
+  } else if (config.commands.enabled) {
+    checks.push(ok('cmd-intent', 'Yazıyla komutlar (.close vb.)', `Açık · önek "${config.commands.prefix}" · ${config.commands.list.filter(c => c.enabled).length} komut`));
+  }
+
   // 7) Transcript için mesaj içeriği
   if (config.settings.transcript && process.env.MESSAGE_CONTENT_INTENT !== 'true') {
     checks.push(warn('intent', 'Transcript mesaj metinleri', 'Message Content Intent kapalı; kayıtta sadece yazar, zaman ve dosyalar görünür.',

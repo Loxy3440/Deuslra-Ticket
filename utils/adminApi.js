@@ -6,6 +6,7 @@ const { publishPanel } = require('./panel');
 const { runDiagnostics } = require('./diagnostics');
 const { resolveMediaUrl } = require('./media');
 const { MESSAGE_DEFS, SITE_DEFS } = require('./messages');
+const { ACTIONS, PERMISSIONS } = require('./commandDefs');
 
 class ApiError extends Error {
   constructor(status, message) { super(message); this.status = status; }
@@ -89,7 +90,10 @@ const handlers = {
   },
 
   // Mesajlar ve site yazılarının listesi (panelde otomatik form olarak çizilir)
-  'GET schema': async () => ({ messages: MESSAGE_DEFS, site: SITE_DEFS }),
+  'GET schema': async () => ({
+    messages: MESSAGE_DEFS, site: SITE_DEFS, actions: ACTIONS, permissions: PERMISSIONS,
+    intentOn: process.env.MESSAGE_CONTENT_INTENT === 'true', // yazıyla komutlar için şart
+  }),
 
   'GET meta': async client => {
     const guild = client.isReady() ? getGuild(client) : null;

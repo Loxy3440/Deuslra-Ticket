@@ -77,6 +77,25 @@ const MESSAGE_DEFS = [
   D('userRemovedReply', 'Kişi ekleme ve çıkarma', '/remove sonrası gizli yanıt', '{username} ticket\'tan çıkarıldı.', ['username']),
   D('cannotRemoveOwner', 'Kişi ekleme ve çıkarma', 'Sahibi çıkarılmaya çalışılırsa', 'Ticket sahibini ticket\'tan çıkaramazsın.'),
 
+  // ---- Yazıyla komutlar (.close vb.) ----
+  D('cmdNoPermission', 'Yazıyla komutlar', 'Yetkisi olmayan kullanırsa', 'Bu komutu kullanma yetkin yok.'),
+  D('cmdOnlyTicket', 'Yazıyla komutlar', 'Ticket dışında kullanılırsa', 'Bu komut yalnızca bir ticket kanalında kullanılabilir.'),
+  D('cmdWait', 'Yazıyla komutlar', 'Komut bekleme süresi dolmadıysa', 'Bu komutu tekrar kullanmak için biraz beklemelisin: {time}', ['time']),
+  D('cmdUsage', 'Yazıyla komutlar', 'Eksik yazılırsa kullanım bilgisi', 'Kullanım: {usage}', ['usage']),
+  D('cmdNeedReason', 'Yazıyla komutlar', 'Sebep zorunluyken yazılmazsa', 'Sebep yazmalısın. Kullanım: {usage}', ['usage']),
+  D('cmdUserNotFound', 'Yazıyla komutlar', 'Kişi bulunamazsa', 'Kullanıcı bulunamadı. Birini etiketle veya ID\'sini yaz. Kullanım: {usage}', ['usage']),
+  D('cmdRenamed', 'Yazıyla komutlar', 'Kanal adı değişince', 'Kanal adı değiştirildi: {name}', ['name']),
+  D('cmdRenameFailed', 'Yazıyla komutlar', 'Kanal adı değişemezse', 'Kanal adı değiştirilemedi (Discord sınırı: 10 dakikada 2 kez).'),
+  D('cmdFailed', 'Yazıyla komutlar', 'Beklenmeyen hata', 'Komut çalıştırılamadı. Botun izinlerini kontrol et.'),
+  D('infoTitle', 'Yazıyla komutlar', 'Ticket bilgisi başlığı', 'Ticket #{number} bilgisi', ['number']),
+  D('fieldStatus', 'Yazıyla komutlar', 'Bilgi satırı: durum', 'Durum'),
+  D('fieldClaimedBy', 'Yazıyla komutlar', 'Bilgi satırı: üstlenen', 'Üstlenen'),
+  D('statusOpen', 'Yazıyla komutlar', 'Durum: açık', 'Açık'),
+  D('statusClosed', 'Yazıyla komutlar', 'Durum: kapalı', 'Kapalı'),
+  D('fieldNone', 'Yazıyla komutlar', 'Boş değer', '—'),
+  D('helpTitle', 'Yazıyla komutlar', 'Komut listesi başlığı', 'Kullanabildiğin komutlar'),
+  D('helpEmpty', 'Yazıyla komutlar', 'Kullanabildiği komut yoksa', 'Şu an kullanabileceğin bir komut yok.'),
+
   // ---- Uyarılar ----
   D('notTicket', 'Uyarılar', 'Komut ticket dışında kullanılırsa', 'Bu komut yalnızca bir ticket kanalında kullanılabilir.'),
   D('ticketClosed', 'Uyarılar', 'Ticket kapalıyken işlem denenirse', 'Bu ticket kapatılmış.'),

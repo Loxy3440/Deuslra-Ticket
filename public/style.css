@@ -187,3 +187,5 @@ td{padding:11px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
 .grp>.field:first-of-type{margin-top:14px}
 .txt-in{display:flex;gap:8px;align-items:flex-start}
 .txt-in textarea,.txt-in input{flex:1}
+
+.usage{font:600 15px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--ink);color:var(--on-ink);padding:6px 10px;border-radius:8px}

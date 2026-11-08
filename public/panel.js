@@ -1,6 +1,6 @@
 /* Deuslra Destek · yönetim paneli (framework yok, saf JS) */
 const root = document.getElementById('root');
-let schema = { messages: [], site: [] };
+let schema = { messages: [], site: [], actions: {}, permissions: {}, intentOn: false };
 let cfg = null, meta = { connected: false, channels: [], categories: [], roles: [] };
 let isDirty = false, previewEl = null, ticketPreviewEl = null, saveInfo = null, timer = null, refreshDiag = () => {};
 
@@ -391,9 +391,92 @@ function textsPane(id, title, intro, defs, obj) {
 }
 const colorInput = (obj, key) => { const el = h('input', { type: 'color', value: obj[key] }); el.addEventListener('input', () => { obj[key] = el.value; dirty(); }); return el; };
 
+/* ---------- Komutlar sekmesi (.close, .useradd vb.) ---------- */
+function commandsPane() {
+  const k = cfg.commands;
+  const list = h('div', {});
+  const actionIds = Object.keys(schema.actions);
+
+  function rolePicker(arr) {
+    const box = h('div', { class: 'roles' });
+    const draw = () => box.replaceChildren(...meta.roles.map(r => {
+      const el = h('label', { class: `role ${arr.includes(r.id) ? 'on' : ''}` }, h('i', {}), r.name);
+      el.firstChild.style.background = r.color && r.color !== '#000000' ? r.color : '#99aab5';
+      el.addEventListener('click', e => { e.preventDefault(); const i = arr.indexOf(r.id); if (i >= 0) arr.splice(i, 1); else arr.push(r.id); dirty(); draw(); });
+      return el;
+    }));
+    draw();
+    return box;
+  }
+
+  function draw() {
+    list.replaceChildren(...k.list.map((c, i) => {
+      const usage = h('code', { class: 'usage' });
+      const desc = h('p', { class: 'hint' });
+      const respField = field('Cevap metni', text(c, 'response', { multi: true, rows: 3, max: 1500 }), '{user} {username} {server} {channel} {number} {prefix} yazabilirsin.');
+      const upd = () => {
+        const a = schema.actions[c.action] || {};
+        usage.textContent = `${k.prefix}${c.name || '…'}${a.usage ? ' ' + a.usage : ''}`;
+        desc.textContent = `${a.desc || ''} ${a.links || ''}`;
+        respField.style.display = c.action === 'reply' ? '' : 'none';
+      };
+      const nameEl = text(c, 'name', { max: 21, ph: 'close' }); nameEl.addEventListener('input', upd);
+      const aliasEl = h('input', { type: 'text', placeholder: 'kapat, kapa' }); aliasEl.value = (c.aliases || []).join(', ');
+      aliasEl.addEventListener('input', () => { c.aliases = aliasEl.value.split(/[\s,]+/).filter(Boolean); dirty(); });
+      const actSel = h('select', {}, actionIds.map(a => h('option', { value: a }, schema.actions[a].label)));
+      actSel.value = c.action;
+      actSel.addEventListener('change', () => { c.action = actSel.value; c.permission = schema.actions[c.action].perm; c.ticketOnly = schema.actions[c.action].needsTicket; permSel.value = c.permission; ticketChk.checked = c.ticketOnly; dirty(); upd(); });
+      const permSel = h('select', {}, Object.entries(schema.permissions).map(([v, l]) => h('option', { value: v }, l)));
+      permSel.value = c.permission; permSel.addEventListener('change', () => { c.permission = permSel.value; dirty(); });
+      const ticketChk = h('input', { type: 'checkbox', checked: c.ticketOnly }); ticketChk.addEventListener('change', () => { c.ticketOnly = ticketChk.checked; dirty(); });
+      const enChk = h('input', { type: 'checkbox', checked: c.enabled }); enChk.addEventListener('change', () => { c.enabled = enChk.checked; dirty(); });
+      const move = d => { const j = i + d; if (j < 0 || j >= k.list.length) return; [k.list[i], k.list[j]] = [k.list[j], k.list[i]]; dirty(); draw(); };
+      upd();
+      return h('div', { class: 'bcard' },
+        h('div', { class: 'bhead' }, h('div', {}, usage),
+          h('div', { class: 'acts' },
+            h('label', { class: 'chk', style: 'margin:0' }, enChk, 'Açık'),
+            h('button', { class: 'btn ghost sm', onclick: () => move(-1) }, '↑'), h('button', { class: 'btn ghost sm', onclick: () => move(1) }, '↓'),
+            h('button', { class: 'btn danger sm', onclick: () => { if (confirm(`"${c.name}" komutu silinsin mi?`)) { k.list.splice(i, 1); dirty(); draw(); } } }, 'Sil'))),
+        h('div', { class: 'grid2' },
+          field('Komut adı (önek yazma)', nameEl, 'Örn. useradd yazarsan .useradd olur.'),
+          field('Ek adlar (virgülle)', aliasEl, 'Aynı işi yapan başka adlar.'),
+          field('Ne yapsın?', actSel),
+          field('Kimler kullanabilsin?', permSel),
+          field('Bekleme süresi (saniye)', num(c, 'cooldownSeconds', 0, 3600), 'Kişi başı; 0 = sınırsız.'),
+          field('Yardım listesindeki açıklama', text(c, 'description', { max: 120 }))),
+        desc,
+        h('label', { class: 'chk' }, ticketChk, 'Sadece ticket kanallarında çalışsın'),
+        field('Ek yetkili roller', rolePicker(c.roleIds), 'Seçilen roller yukarıdaki kuraldan bağımsız bu komutu kullanabilir.'),
+        respField);
+    }));
+  }
+  draw();
+
+  const table = h('div', { class: 'tablewrap' }, h('table', {},
+    h('thead', {}, h('tr', {}, ['Eylem', 'Ne yapar', 'Başka nereden yapılır'].map(x => h('th', {}, x)))),
+    h('tbody', {}, actionIds.map(a => h('tr', {}, h('td', {}, h('b', {}, schema.actions[a].label), h('div', { class: 'hint' }, schema.actions[a].usage || '')), h('td', {}, schema.actions[a].desc), h('td', { class: 'muted' }, schema.actions[a].links))))));
+
+  return h('div', { class: 'pane', id: 'pane-commands' },
+    !schema.intentOn && h('div', { class: 'banner bad' }, 'Yazıyla komutların çalışması için Message Content Intent gerekli: Developer Portal > Bot > "Message Content Intent"i aç, ortam değişkenlerine MESSAGE_CONTENT_INTENT=true ekle ve botu yeniden başlat. Slash komutları (/close vb.) bundan etkilenmez.'),
+    h('div', { class: 'card' }, h('h2', {}, 'Yazıyla komutlar'),
+      h('p', { class: 'hint', style: 'margin-bottom:12px' }, 'Kullanıcılar ticket kanalına örneğin .close yazarak işlem yapabilir. Her komutu hangi işe bağlayacağını, adını ve kimlerin kullanabileceğini aşağıdan ayarlarsın.'),
+      check(k, 'enabled', 'Yazıyla komutlar açık'),
+      h('div', { class: 'grid2' },
+        field('Komut öneki', text(k, 'prefix', { max: 3, ph: '.' }), '1-3 karakter, örn. . ! ? Değişince tüm komutlar yeni önekle çalışır.'),
+        field('Cevabı kaç saniye sonra silsin?', num(k, 'replyDeleteSeconds', 0, 300), '0 = silmesin.')),
+      check(k, 'deleteInvocation', 'Komutu yazan kişinin mesajını sil (botta "Mesajları Yönet" izni gerekir)')),
+    h('div', { class: 'card' },
+      h('div', { class: 'bhead' }, h('div', {}, h('h2', {}, 'Komutlar'), h('p', { class: 'hint' }, 'Aynı eylemi birden çok adla ekleyebilirsin. Ad ve ek adlar benzersiz olmalı.')),
+        h('button', { class: 'btn sm', onclick: () => { if (k.list.length >= 40) return toast('En fazla 40 komut.', 'err'); k.list.push({ id: '', name: '', aliases: [], action: 'reply', enabled: true, permission: 'everyone', roleIds: [], ticketOnly: false, cooldownSeconds: 0, description: '', response: '' }); dirty(); draw(); } }, '+ Komut ekle')),
+      list),
+    h('div', { class: 'card' }, h('h2', {}, 'Hangi eylem neye bağlı?'), h('p', { class: 'hint', style: 'margin-bottom:10px' }, 'Komutlar bu eylemlerden birini çalıştırır; slash komutları ve butonlarla aynı işi yapar.'), table));
+}
+
 /* ---------- ana iskelet ---------- */
 function showApp() {
   const tabs = [['overview', '📊', 'Genel bakış', overviewPane], ['general', '⚙️', 'Ayarlar', generalPane], ['look', '🎨', 'Panel görünümü', appearancePane], ['buttons', '🎫', 'Kategoriler & formlar', buttonsPane],
+    ['commands', '⌨️', 'Komutlar', commandsPane],
     ['messages', '💬', 'Bot mesajları', () => textsPane('messages', 'Bot mesajları', 'Botun ticket açarken, kapatırken, silerken, DM\'de ve logda yazdığı bütün yazılar. {süslü} kısımlar otomatik doldurulur. Kutuyu boş bırakırsan varsayılan yazı kullanılır.', schema.messages, cfg.messages)],
     ['site', '🌐', 'Site yazıları', () => textsPane('site', 'Site yazıları', 'Ana sayfadaki bütün başlıklar, açıklamalar ve düğme yazıları.', schema.site, cfg.site)]];
   const panes = tabs.map(t => t[3]());

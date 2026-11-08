@@ -2,6 +2,7 @@ const path = require('path');
 const { readJson } = require('./json');
 const db = require('./db');
 const { MESSAGE_DEFS, SITE_DEFS, normalizeTexts } = require('./messages');
+const { ACTIONS, PERMISSIONS, DEFAULT_COMMANDS } = require('./commandDefs');
 
 const ROOT = path.join(__dirname, '..');
 const CONFIG_PATH = path.join(ROOT, 'config', 'ticket-config.json');
@@ -43,6 +44,7 @@ function defaultConfig() {
     colors: { main: '#8B5CF6', success: '#22C55E', warning: '#F59E0B', danger: '#EF4444' },
     messages: {},
     site: {},
+    commands: { enabled: true, prefix: '.', deleteInvocation: false, replyDeleteSeconds: 0, list: DEFAULT_COMMANDS },
     ticketEmbed: { title: 'Ticket #{number} · {category}', color: '#8B5CF6', footer: '', imageUrl: '', thumbnailUrl: '', showDetails: true },
     actions: {
       close: { label: 'Talebi kapat', emoji: '🔒', color: 'danger', cooldownSeconds: 0 },
@@ -82,6 +84,52 @@ const cleanChannelFormat = v => {
   const s = String(v ?? '').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_{}-]/g, '').slice(0, 60);
   return s.includes('{number}') ? s : '';
 };
+// Yazıyla komutlar (.close vb.): adlar benzersiz olmalı, eylem listede olmalı
+const cleanCmdName = (v, prefix) => String(v ?? '').trim().toLowerCase().replace(/\s+/g, '').slice(prefix.length && String(v ?? '').trim().startsWith(prefix) ? prefix.length : 0, 40);
+function normalizeCommands(input, d) {
+  const k = input && typeof input === 'object' ? input : {};
+  const rawPrefix = typeof k.prefix === 'string' ? k.prefix.trim() : '';
+  if (rawPrefix && !/^\S{1,3}$/.test(rawPrefix)) throw new ConfigError('Komut öneki 1-3 karakter olmalı ve boşluk içermemeli (örn. . ! ?).');
+  const prefix = rawPrefix || d.prefix;
+  const seen = new Map();
+  const nameRe = /^[a-z0-9çğıöşü_-]{1,20}$/;
+  const checkName = (n, label) => {
+    if (!nameRe.test(n)) throw new ConfigError(`Komut adı geçersiz: "${n}" (${label}). Küçük harf, rakam, - ve _ kullan, en fazla 20 karakter.`);
+    if (seen.has(n)) throw new ConfigError(`"${n}" adı iki yerde kullanılmış. Her komut ve ek ad benzersiz olmalı.`);
+    seen.set(n, true);
+    return n;
+  };
+  const rawList = Array.isArray(k.list) ? k.list : d.list;
+  if (rawList.length > 40) throw new ConfigError('En fazla 40 komut olabilir.');
+  const list = rawList.map((cmd, i) => {
+    const action = ACTIONS[cmd?.action] ? cmd.action : 'reply';
+    const name = checkName(cleanCmdName(cmd?.name, prefix), `${i + 1}. komut`);
+    const aliases = (Array.isArray(cmd?.aliases) ? cmd.aliases : String(cmd?.aliases ?? '').split(/[\s,]+/))
+      .map(a => cleanCmdName(a, prefix)).filter(Boolean).slice(0, 5).map(a => checkName(a, `${name} için ek ad`));
+    return {
+      id: slug(cmd?.id || name) || `komut-${i + 1}`,
+      name, aliases, action,
+      enabled: bool(cmd?.enabled, true),
+      permission: PERMISSIONS[cmd?.permission] ? cmd.permission : ACTIONS[action].perm,
+      roleIds: [...new Set((Array.isArray(cmd?.roleIds) ? cmd.roleIds : []).map(cleanId).filter(Boolean))].slice(0, 10),
+      ticketOnly: bool(cmd?.ticketOnly, ACTIONS[action].needsTicket),
+      cooldownSeconds: clampInt(cmd?.cooldownSeconds, 0, 3600, 0),
+      description: str(cmd?.description, 120),
+      response: str(cmd?.response, 1500),
+    };
+  });
+  if (list.some(c => c.action === 'reply' && !c.response)) {
+    const bad = list.find(c => c.action === 'reply' && !c.response);
+    throw new ConfigError(`"${bad.name}" komutu "Özel cevap" olarak ayarlı ama cevap metni boş.`);
+  }
+  return {
+    enabled: bool(k.enabled, d.enabled),
+    prefix,
+    deleteInvocation: bool(k.deleteInvocation, d.deleteInvocation),
+    replyDeleteSeconds: clampInt(k.replyDeleteSeconds, 0, 300, d.replyDeleteSeconds),
+    list,
+  };
+}
 const clampInt = (v, min, max, def) => { const n = Number.parseInt(v, 10); return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def; };
 const bool = (v, def) => (typeof v === 'boolean' ? v : def);
 
@@ -169,6 +217,7 @@ function normalizeConfig(input) {
       showDetails: bool(te.showDetails, true),
     },
     colors: Object.fromEntries(['main', 'success', 'warning', 'danger'].map(k => [k, cleanColorOr(c.colors?.[k], d.colors[k])])),
+    commands: normalizeCommands(c.commands, d.commands),
     messages: normalizeTexts(c.messages, MESSAGE_DEFS),
     site: normalizeTexts(c.site, SITE_DEFS),
     actions: { close: action('close'), claim: action('claim'), callStaff: action('callStaff') },
