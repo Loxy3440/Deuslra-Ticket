@@ -38,12 +38,28 @@ function drawCats(list) {
 }
 
 // Panelden değiştirilen site yazılarını yerleştirir (data-t="anahtar" olan her alan)
-function applyTexts(site, hasLink) {
+// Site yazılarındaki {değişkenler}: {server} {members} {open} {closed} {total} {brand} {bot} {ping} {date} {time} {greeting}
+function siteFill(text, s) {
+  const now = new Date();
+  const h = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Istanbul', hour: '2-digit', hour12: false }).format(now)) % 24;
+  const tr = o => new Intl.DateTimeFormat('tr-TR', { timeZone: 'Europe/Istanbul', ...o }).format(now);
+  const v = {
+    server: s.guild?.name || '', members: s.guild ? nf(s.guild.members) : '', membercount: s.guild ? nf(s.guild.members) : '',
+    open: nf(s.tickets.open), opentickets: nf(s.tickets.open), closed: nf(s.tickets.closed), total: nf(s.tickets.total), totaltickets: nf(s.tickets.total),
+    brand: s.brand || '', bot: s.bot?.tag || '', botname: s.bot?.tag || '', ping: s.ping ?? '',
+    date: tr({ day: '2-digit', month: '2-digit', year: 'numeric' }), time: tr({ hour: '2-digit', minute: '2-digit', hour12: false }),
+    day: tr({ weekday: 'long' }), year: tr({ year: 'numeric' }),
+    greeting: h >= 5 && h < 12 ? 'Günaydın' : h >= 12 && h < 18 ? 'İyi günler' : h >= 18 && h < 23 ? 'İyi akşamlar' : 'İyi geceler',
+  };
+  return String(text).replace(/\{(\w+)\}/g, (m, k) => (k.toLowerCase() in v ? v[k.toLowerCase()] : m));
+}
+
+function applyTexts(site, hasLink, stats) {
   if (!site) return;
   document.querySelectorAll('[data-t]').forEach(el => {
     const k = el.dataset.t;
     if (k === 'ctaTextNoLink' && hasLink) return; // link varken ctaText kullanılır
-    if (site[k]) el.textContent = site[k];
+    if (site[k]) el.textContent = stats ? siteFill(site[k], stats) : site[k];
   });
 }
 
@@ -67,7 +83,7 @@ async function tick() {
     $('s-ping').textContent = s.ping == null ? '–' : `${s.ping} ms`;
     $('s-up').textContent = fmtUp(s.uptime);
     if (s.panelUrl) { $('cta').href = s.panelUrl; $('cta').target = '_blank'; $('cta').rel = 'noopener'; $('cta').textContent = (s.site && s.site.ctaText) || 'Discord\'da talep aç'; }
-    applyTexts(s.site, Boolean(s.panelUrl));
+    applyTexts(s.site, Boolean(s.panelUrl), s);
     const key = JSON.stringify([s.panel, s.categories]);
     if (key !== catKey) { catKey = key; drawMock(s); drawCats(s.categories); }
   } catch {

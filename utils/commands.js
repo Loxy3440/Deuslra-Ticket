@@ -2,7 +2,9 @@ const { EmbedBuilder } = require('discord.js');
 const { parseTicket, readConfig, writeConfig } = require('./config');
 const { isStaff } = require('./permissions');
 const { ACTIONS } = require('./commandDefs');
-const { msg, render } = require('./messages');
+const { msg: baseMsg, renderAll } = require('./messages');
+const { ticketVars } = require('./variables');
+const msg = baseMsg;
 const store = require('./store');
 const t = require('./tickets');
 
@@ -52,8 +54,17 @@ async function performAction(ctx) {
   const actor = { id: user.id, label: user.username, mention: `<@${user.id}>` };
   const staff = isStaff(member, config);
   const pad = t.pad;
+  // Bu işlemdeki tüm yazılar talep değişkenlerini ({owner}, {category}, {claimer}...) kullanabilir.
+  // {user}/{username}/{staff}: komutu yazan / butona basan kişi.
+  const invoker = {
+    user: `<@${user.id}>`, username: user.username, userid: user.id, displayname: member?.displayName || user.username,
+    useravatar: user.displayAvatarURL?.({ size: 256 }) || '', staff: `<@${user.id}>`, staffname: user.username, staffid: user.id,
+  };
+  const vars = () => ({ ...ticketVars(config, { channel, guild, actor }), ...invoker });
+  const msg = (c, k, v) => baseMsg(c, k, { ...vars(), ...v });
+  const sw = cmd.action;
 
-  switch (cmd.action) {
+  switch (sw) {
     case 'close': {
       let reason = rest.trim();
       const mode = config.settings.askCloseReason;
@@ -162,10 +173,7 @@ async function performAction(ctx) {
       return say('', { embeds: [embed] });
     }
     case 'reply': {
-      const text = render(cmd.response, {
-        user: `<@${user.id}>`, username: user.username, server: guild.name,
-        channel: `${channel}`, number: ticket ? pad(ticket.number) : '', prefix,
-      });
+      const text = renderAll(config, cmd.response, vars());
       return ctx.sendReply(text.slice(0, 2000));
     }
     default: return undefined;

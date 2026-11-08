@@ -4,7 +4,7 @@ const {
 const { readPanelState, writePanelState } = require('./config');
 const { missingPermissions, PANEL_CHANNEL_REQUIRED } = require('./permissions');
 const { attachmentFor } = require('./media');
-const { msg } = require('./messages');
+const { msg, renderAll } = require('./messages');
 
 const STYLES = {
   primary: ButtonStyle.Primary,
@@ -39,7 +39,7 @@ function buildButtonRows(config) {
 function buildSelectRow(config) {
   const menu = new StringSelectMenuBuilder()
     .setCustomId('ticket-select')
-    .setPlaceholder((config.panel.placeholder || 'Bir kategori seç…').slice(0, 150))
+    .setPlaceholder((renderAll(config, config.panel.placeholder) || 'Bir kategori seç…').slice(0, 150))
     .setMinValues(1).setMaxValues(1);
   for (const item of config.buttons.slice(0, 25)) {
     const option = new StringSelectMenuOptionBuilder().setLabel(item.label.slice(0, 100)).setValue(item.id);
@@ -51,7 +51,8 @@ function buildSelectRow(config) {
 }
 
 function buildPanelPayload(config, imgs = {}) {
-  const panel = config.panel;
+  const fill = t => renderAll(config, t || '');
+  const panel = { ...config.panel, title: fill(config.panel.title), description: fill(config.panel.description), footer: fill(config.panel.footer), content: fill(config.panel.content), placeholder: fill(config.panel.placeholder) };
   const embed = new EmbedBuilder().setColor(panel.color || '#8B5CF6');
   if (panel.title) embed.setTitle(panel.title);
   if (panel.description) embed.setDescription(panel.description);

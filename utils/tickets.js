@@ -10,7 +10,9 @@ const { isStaff } = require('./permissions');
 const { buildOpenRows, buildClosedRows } = require('./panel');
 const { buildTranscript } = require('./transcript');
 const { replyPrivate } = require('./replies');
-const { msg } = require('./messages');
+const { msg, renderAll } = require('./messages');
+const { ticketVars } = require('./variables');
+const baseMsg = msg;
 
 const PANEL_ACTOR = { id: null, label: 'Web paneli', mention: '**Web paneli**' };
 
@@ -147,17 +149,15 @@ async function openTicket({ guild, user, config, button, answers = [] }) {
     ],
   });
 
-  const welcome = config.settings.welcomeMessage
-    .replace(/\{user\}/gi, `<@${user.id}>`)
-    .replace(/\{category\}/gi, button.label)
-    .replace(/\{number\}/gi, pad(number));
+  const V = ticketVars(config, { channel, guild, user, member: guild.members?.cache?.get?.(user.id) || null, button, number, extra: { opened: `<t:${unix(Date.now())}:R>`, openedat: `<t:${unix(Date.now())}:F>` } });
+  const welcome = renderAll(config, config.settings.welcomeMessage, V);
   const te = config.ticketEmbed;
-  const fill = text => String(text || '').replace(/\{user\}/gi, `<@${user.id}>`).replace(/\{category\}/gi, button.label).replace(/\{number\}/gi, pad(number));
+  const fill = text => renderAll(config, text || '', V);
   const embed = new EmbedBuilder()
     .setColor(te.color || config.colors.main)
     .setTitle(fill(te.title).slice(0, 256) || `Ticket #${pad(number)}`)
     .setDescription(welcome)
-    .setFooter({ text: te.footer || config.brandName });
+    .setFooter({ text: fill(te.footer) || config.brandName });
   if (te.showDetails) {
     embed.addFields(
       { name: msg(config, 'fieldOwner'), value: `<@${user.id}>`, inline: true },
@@ -187,7 +187,7 @@ async function openTicket({ guild, user, config, button, answers = [] }) {
     buttonLabel: button.label, status: 'open', createdAt: Date.now(), answers: answerFields,
   });
   await logEvent(guild, config, {
-    title: msg(config, 'logOpenedTitle', { number: pad(number) }), color: config.colors.success,
+    title: baseMsg(config, 'logOpenedTitle', { ...V, number: pad(number) }), color: config.colors.success,
     fields: [
       { name: msg(config, 'fieldChannel'), value: `${channel}`, inline: true },
       { name: msg(config, 'fieldOwner'), value: `<@${user.id}>`, inline: true },
@@ -198,10 +198,13 @@ async function openTicket({ guild, user, config, button, answers = [] }) {
 }
 
 async function closeTicket({ channel, config, actor, reason }) {
+  const ex = {};
+  const msg = (c, k, v) => baseMsg(c, k, { ...ticketVars(c, { channel, actor, extra: ex }), ...v });
   const t = parseTicket(channel);
   if (!t) return { error: msg(config, 'errNotTicketChannel') };
   if (t.status !== 'open') return { error: msg(config, 'errAlreadyClosed') };
   const why = String(reason || '').trim().slice(0, 400) || msg(config, 'closeReasonDefault');
+  ex.reason = why;
   const guild = channel.guild;
 
   const transcript = await makeTranscript(channel, config, t.number);
@@ -250,6 +253,8 @@ async function closeTicket({ channel, config, actor, reason }) {
 }
 
 async function reopenTicket({ channel, config, actor }) {
+  const ex = {};
+  const msg = (c, k, v) => baseMsg(c, k, { ...ticketVars(c, { channel, actor, extra: ex }), ...v });
   const t = parseTicket(channel);
   if (!t) return { error: msg(config, 'errNotTicketChannel') };
   if (t.status !== 'closed') return { error: msg(config, 'ticketAlreadyOpen') };
@@ -274,6 +279,8 @@ async function reopenTicket({ channel, config, actor }) {
 
 // Kanalı kalıcı siler. Silmeden önce transcript log kanalına gönderilir.
 async function deleteTicket({ channel, config, actor, reason = '' }) {
+  const ex = {};
+  const msg = (c, k, v) => baseMsg(c, k, { ...ticketVars(c, { channel, actor, extra: ex }), ...v });
   const t = parseTicket(channel);
   if (!t) return { error: msg(config, 'errNotTicketChannel') };
   const delay = config.settings.deleteDelaySeconds;
@@ -303,6 +310,8 @@ async function deleteTicket({ channel, config, actor, reason = '' }) {
 }
 
 async function claimTicket({ channel, config, actor }) {
+  const ex = {};
+  const msg = (c, k, v) => baseMsg(c, k, { ...ticketVars(c, { channel, actor, extra: ex }), ...v });
   const t = parseTicket(channel);
   if (!t || t.status !== 'open') return { error: msg(config, 'errNeedOpen') };
   if (t.claimId && t.claimId !== actor.id) return { error: msg(config, 'claimTaken', { claimer: `<@${t.claimId}>` }) };
@@ -375,7 +384,7 @@ async function handleFormSubmit(interaction, config, buttonId) {
 
 async function createFromInteraction(interaction, config, button, answers) {
   const res = await openTicket({ guild: interaction.guild, user: interaction.user, config, button, answers });
-  return replyPrivate(interaction, res.error || msg(config, 'openedReply', { channel: `${res.channel}`, category: button.label, number: pad(res.number) }));
+  return replyPrivate(interaction, res.error || msg(config, 'openedReply', ticketVars(config, { channel: res.channel, guild: interaction.guild, user: interaction.user, member: interaction.member, button, number: res.number })));
 }
 
 // "Kapat" butonu: sebep penceresi sadece ayarlandığı kişiye açılır (varsayılan: yalnızca destek ekibi).

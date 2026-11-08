@@ -2,6 +2,8 @@
 // sekmelerinden değiştirilir; kutu boş bırakılırsa buradaki varsayılan kullanılır.
 // vars: yazıda kullanılabilecek {değişkenler}
 
+const { globalVars } = require('./variables');
+
 const D = (key, group, label, def, vars = [], extra = {}) => ({ key, group, label, def, vars, ...extra });
 
 const MESSAGE_DEFS = [
@@ -193,6 +195,11 @@ function normalizeTexts(input, defs) {
 function render(template, vars = {}) {
   return String(template).replace(/\{(\w+)\}/g, (m, k) => (k.toLowerCase() in vars ? String(vars[k.toLowerCase()]) : m));
 }
-const msg = (config, key, vars) => render(config?.messages?.[key] ?? MESSAGE_DEFAULTS[key] ?? key, vars);
+// Verilen şablonu hem genel değişkenlerle ({server}, {date}...) hem de gelen değişkenlerle doldurur.
+function renderAll(config, template, vars = {}) {
+  const tpl = String(template ?? '');
+  return tpl.includes('{') ? render(tpl, { ...globalVars(config), ...vars }) : tpl;
+}
+const msg = (config, key, vars) => renderAll(config, config?.messages?.[key] ?? MESSAGE_DEFAULTS[key] ?? key, vars);
 
-module.exports = { MESSAGE_DEFS, SITE_DEFS, MESSAGE_DEFAULTS, SITE_DEFAULTS, normalizeTexts, render, msg };
+module.exports = { MESSAGE_DEFS, SITE_DEFS, MESSAGE_DEFAULTS, SITE_DEFAULTS, normalizeTexts, render, renderAll, msg };

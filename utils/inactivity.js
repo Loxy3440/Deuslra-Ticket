@@ -1,6 +1,7 @@
 const { ChannelType } = require('discord.js');
 const { readConfig, parseTicket, getGuildId } = require('./config');
 const { msg } = require('./messages');
+const { ticketVars } = require('./variables');
 const t = require('./tickets');
 
 // Hareketsiz ticket takibi: son mesajdan "uyarı süresi" geçince uyarır, uyarıdan sonra "kapatma süresi" içinde
@@ -28,7 +29,7 @@ async function checkChannel(client, channel, config, now) {
   if (w) warned.delete(channel.id); // yazışma olmuş, sayaç sıfırlanır
   if (now - lastAt >= config.settings.inactivityWarnHours * HOUR) {
     const sent = await channel.send({
-      content: msg(config, 'inactivityWarn', { user: ticket.ownerId ? `<@${ticket.ownerId}>` : '', hours: String(config.settings.inactivityCloseHours) }),
+      content: msg(config, 'inactivityWarn', { ...ticketVars(config, { channel }), hours: String(config.settings.inactivityCloseHours) }),
       allowedMentions: ticket.ownerId ? { users: [ticket.ownerId] } : { parse: [] },
     }).catch(() => null);
     if (sent) warned.set(channel.id, { id: sent.id, at: now });

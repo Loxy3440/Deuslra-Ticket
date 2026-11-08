@@ -111,9 +111,15 @@ const chanItems = () => meta.channels.map(c => ({ id: c.id, label: `#${c.name}${
 const catItems = () => meta.categories.map(c => ({ id: c.id, label: c.name }));
 
 /* ---------- Discord önizlemesi ---------- */
+function previewFill(t) {
+  const now = new Date();
+  const v = { server: 'Sunucu', serverid: '123456789012345678', membercount: '1.280', brand: cfg.brandName, botname: 'Bot', prefix: cfg.commands.prefix, opentickets: '4', totaltickets: '312', greeting: 'Merhaba', date: now.toLocaleDateString('tr-TR'), time: now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }), year: String(now.getFullYear()) };
+  return String(t || '').replace(/\{(\w+)\}/g, (m, k) => (k.toLowerCase() in v ? v[k.toLowerCase()] : m));
+}
+
 function refreshPreview() {
   if (!previewEl) return;
-  const p = cfg.panel;
+  const p = { ...cfg.panel, title: previewFill(cfg.panel.title), description: previewFill(cfg.panel.description), footer: previewFill(cfg.panel.footer), content: previewFill(cfg.panel.content), placeholder: previewFill(cfg.panel.placeholder) };
   const emb = h('div', { class: 'emb' });
   emb.style.borderLeftColor = p.color || '#8B5CF6';
   if (p.title) emb.append(h('div', { class: 't' }, p.title));
@@ -137,7 +143,8 @@ function refreshTicketPreview() {
   if (typeof ticketPreviewEl2 !== 'undefined' && ticketPreviewEl2) ticketPreviewEl2.replaceChildren(h('div', { class: 'dc' }, ticketBtnRow()));
   if (!ticketPreviewEl) return;
   const te = cfg.ticketEmbed, st = cfg.settings;
-  const fill = t => String(t || '').replace(/\{user\}/gi, '@kullanıcı').replace(/\{category\}/gi, cfg.buttons[0]?.label || 'Kategori').replace(/\{number\}/gi, '0001');
+  const sample = { user: '@kullanıcı', username: 'kullanıcı', displayname: 'Kullanıcı', userid: '123456789012345678', category: cfg.buttons[0]?.label || 'Kategori', number: '0001', server: 'Sunucu', brand: cfg.brandName, greeting: 'Merhaba', date: new Date().toLocaleDateString('tr-TR'), time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }), supportroles: '@Destek Ekibi', staff: '@yetkili', priority: 'normal', status: 'açık', channel: '#ticket-0001' };
+  const fill = t => String(t || '').replace(/\{(\w+)\}/g, (m, k) => (k.toLowerCase() in sample ? sample[k.toLowerCase()] : m));
   const emb = h('div', { class: 'emb' });
   emb.style.borderLeftColor = te.color || '#8B5CF6';
   emb.append(h('div', { class: 't' }, fill(te.title) || 'Ticket #0001'), h('div', { class: 'd' }, fill(st.welcomeMessage)));
@@ -325,7 +332,7 @@ function appearancePane() {
         h('p', { class: 'hint', style: 'margin-bottom:12px' }, 'Kullanıcılar ticket açarken butona mı tıklasın, listeden mi seçsin?'), seg, h('div', { style: 'margin-top:14px' }, ph)),
       h('div', { class: 'card' }, h('h2', {}, 'Panel mesajı'),
         field('Başlık', text(p, 'title', { max: 256 })),
-        field('Açıklama', text(p, 'description', { multi: true, rows: 5, max: 4000 })),
+        field('Açıklama', text(p, 'description', { multi: true, rows: 5, max: 4000 }), '{server} {membercount} {brand} {greeting} {date} {time} gibi değişkenler yazabilirsin (liste: Bot mesajları sekmesi).'),
         field('Embed dışı üst yazı (isteğe bağlı)', text(p, 'content', { max: 2000 })),
         field('Alt yazı', text(p, 'footer', { max: 200 })),
         h('div', { class: 'grid2' },
@@ -338,8 +345,8 @@ function appearancePane() {
           field('Uyarı (kapatıldı)', colorInput(cfg.colors, 'warning')), field('Tehlike (siliniyor)', colorInput(cfg.colors, 'danger')))),
       h('div', { class: 'card' }, h('h2', {}, 'Talep açılınca görünen mesaj'),
         h('p', { class: 'hint', style: 'margin-bottom:12px' }, 'Kullanıcı ticket açınca kanalda çıkan karşılama mesajı.'),
-        field('Başlık', text(cfg.ticketEmbed, 'title', { max: 256 }), '{number} {category} {user} yazabilirsin.'),
-        field('Karşılama yazısı', text(cfg.settings, 'welcomeMessage', { multi: true, max: 500 }), '{user} {category} {number} yazabilirsin.'),
+        field('Başlık', text(cfg.ticketEmbed, 'title', { max: 256 }), '{number} {category} {user} {username} {server} {date} gibi değişkenler yazabilirsin (liste: Bot mesajları sekmesi).'),
+        field('Karşılama yazısı', text(cfg.settings, 'welcomeMessage', { multi: true, max: 500 }), '{user} {username} {displayname} {category} {number} {server} {greeting} {date} {time} {supportroles} gibi değişkenler yazabilirsin (tam liste: Bot mesajları sekmesinin en üstü).'),
         field('Alt yazı', text(cfg.ticketEmbed, 'footer', { max: 200 }), 'Boşsa marka adı yazılır.'),
         h('div', { class: 'grid2' },
           field('Renk', tcolor),
@@ -402,6 +409,20 @@ function buttonsPane() {
 
 /* ---------- metin sekmeleri (Bot mesajları / Site yazıları) ---------- */
 // Tüm yazılar sunucudaki listeden otomatik çizilir; boş bırakılan yazı varsayılana döner.
+// Kullanılabilir {değişkenler} tablosu (tıklayınca panoya kopyalanır)
+function varsCard() {
+  const groups = {};
+  (schema.vars || []).forEach(([g, name, desc, ex]) => (groups[g] ||= []).push([name, desc, ex]));
+  const copy = name => { const t = name.split(' / ')[0]; navigator.clipboard?.writeText(`{${t}}`).then(() => toast(`{${t}} kopyalandı`), () => {}); };
+  return h('div', { class: 'card' }, h('h2', {}, 'Kullanabileceğin {değişkenler}'),
+    h('p', { class: 'hint', style: 'margin-bottom:10px' }, 'Aşağıdaki yazıların, karşılama mesajının, embed başlığı/altlığının, panel yazılarının, özel cevapların ve komut cevaplarının içine süslü parantezle yazarsan bot gerçek değeriyle değiştirir. Örn: "{greeting} {user}, {server} sunucusuna hoş geldin!". Büyük/küçük harf fark etmez. Bir satıra tıklayınca değişken kopyalanır.'),
+    ...Object.entries(groups).map(([g, rows]) => h('details', { class: 'grp', open: g === 'Her yerde' },
+      h('summary', {}, g, h('span', { class: 'muted sm' }, `  ·  ${rows.length} değişken`)),
+      h('div', { class: 'tablewrap' }, h('table', {}, h('thead', {}, h('tr', {}, ['Yaz', 'Ne olur', 'Örnek'].map(x => h('th', {}, x)))),
+        h('tbody', {}, rows.map(([n, d, e]) => h('tr', { style: 'cursor:pointer', title: 'Kopyala', onclick: () => copy(n) }, h('td', {}, h('code', {}, n.split(' / ').map(x => `{${x}}`).join(' '))), h('td', {}, d), h('td', { class: 'muted' }, e)))))))),
+    h('p', { class: 'hint', style: 'margin-top:10px' }, 'Site yazılarında ise şunlar çalışır: {server} {members} {open} {closed} {total} {brand} {bot} {ping} {date} {time} {day} {year} {greeting}.'));
+}
+
 function textsPane(id, title, intro, defs, obj) {
   const groups = {};
   defs.forEach(d => (groups[d.group] ||= []).push(d));
@@ -427,6 +448,7 @@ function textsPane(id, title, intro, defs, obj) {
     });
   });
   return h('div', { class: 'pane', id: `pane-${id}` },
+    ...(id === 'messages' ? [varsCard()] : []),
     h('div', { class: 'card' }, h('h2', {}, title), h('p', { class: 'hint', style: 'margin-bottom:12px' }, intro), search),
     ...blocks.map(b => h('div', { class: 'card' }, b)));
 }
@@ -590,8 +612,8 @@ function showApp() {
   const tabs = [['overview', '📊', 'Genel bakış', overviewPane], ['general', '⚙️', 'Ayarlar', generalPane], ['look', '🎨', 'Panel görünümü', appearancePane], ['buttons', '🎫', 'Kategoriler & formlar', buttonsPane],
     ['ticketbtn', '🔘', 'Talep butonları', ticketButtonsPane],
     ['commands', '⌨️', 'Komutlar', commandsPane],
-    ['messages', '💬', 'Bot mesajları', () => textsPane('messages', 'Bot mesajları', 'Botun ticket açarken, kapatırken, silerken, DM\'de ve logda yazdığı bütün yazılar. {süslü} kısımlar otomatik doldurulur. Kutuyu boş bırakırsan varsayılan yazı kullanılır.', schema.messages, cfg.messages)],
-    ['site', '🌐', 'Site yazıları', () => textsPane('site', 'Site yazıları', 'Ana sayfadaki bütün başlıklar, açıklamalar ve düğme yazıları.', schema.site, cfg.site)]];
+    ['messages', '💬', 'Bot mesajları', () => textsPane('messages', 'Bot mesajları', 'Botun ticket açarken, kapatırken, silerken, DM\'de ve logda yazdığı bütün yazılar. {süslü} kısımlar otomatik doldurulur; her yazıda yukarıdaki tablodaki değişkenleri kullanabilirsin. Kutuyu boş bırakırsan varsayılan yazı kullanılır.', schema.messages, cfg.messages)],
+    ['site', '🌐', 'Site yazıları', () => textsPane('site', 'Site yazıları', 'Ana sayfadaki bütün başlıklar, açıklamalar ve düğme yazıları. {server} {members} {open} {closed} {total} {brand} {bot} {ping} {date} {time} {day} {year} {greeting} değişkenlerini kullanabilirsin.', schema.site, cfg.site)]];
   const panes = tabs.map(t => t[3]());
   saveInfo = h('span', { class: 'muted sm' }, 'Tüm ayarlar kayıtlı');
   const nav = h('nav', { class: 'card side' }, tabs.map(([id, ico, name], i) => h('button', {
