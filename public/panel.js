@@ -183,32 +183,160 @@ function diagCard() {
 }
 
 /* ---------- sekmeler ---------- */
+
+// Rol seçici (tıkla aç/kapat); arr'a rol ID'leri yazılır
+function rolesBox(arr) {
+  const box = h('div', { class: 'roles' });
+  const draw = () => box.replaceChildren(...meta.roles.map(r => {
+    const el = h('label', { class: `role ${arr.includes(r.id) ? 'on' : ''}` }, h('i', {}), r.name);
+    el.firstChild.style.background = r.color && r.color !== '#000000' ? r.color : '#99aab5';
+    el.addEventListener('click', e => { e.preventDefault(); const i = arr.indexOf(r.id); if (i >= 0) arr.splice(i, 1); else arr.push(r.id); dirty(); draw(); });
+    return el;
+  }));
+  draw();
+  return box;
+}
+
+// Çalışma saatleri: gün gün açık/kapalı ve saat aralığı
+function hoursEditor() {
+  const hrs = cfg.settings.hours;
+  const names = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
+  const rows = hrs.days.map((d, i) => {
+    const on = h('input', { type: 'checkbox', checked: d.on }); on.addEventListener('change', () => { d.on = on.checked; dirty(); });
+    const s = h('input', { type: 'time', value: d.start }); s.addEventListener('input', () => { if (s.value) { d.start = s.value; dirty(); } });
+    const e = h('input', { type: 'time', value: d.end }); e.addEventListener('input', () => { if (e.value) { d.end = e.value; dirty(); } });
+    return h('div', { class: 'hrow' }, h('label', { class: 'chk', style: 'margin:0' }, on, names[i]), s, h('span', { class: 'muted' }, '–'), e);
+  });
+  return h('div', {}, check(hrs, 'enabled', 'Çalışma saatlerini kullan: saat dışında açılan taleplere not düşülür (talep yine açılır). Saatler Türkiye saatidir; bitiş başlangıçtan küçükse gece yarısını aşan vardiya sayılır.'),
+    h('div', { class: 'hours' }, rows));
+}
+
+/* ---------- Hazır cevaplar ---------- */
+function cannedPane() {
+  cfg.canned = cfg.canned || [];
+  const list = h('div', {});
+  function draw() {
+    list.replaceChildren(...cfg.canned.map((c, i) => h('div', { class: 'bcard' },
+      h('div', { class: 'bhead' }, h('b', {}, `.${(cfg.commands.list.find(x => x.action === 'canned') || { name: 'cevap' }).name} ${c.name || '…'}`),
+        h('button', { class: 'btn danger sm', onclick: () => { cfg.canned.splice(i, 1); dirty(); draw(); } }, 'Sil')),
+      field('Adı (komutta yazılacak, boşluksuz)', text(c, 'name', { max: 30, ph: 'fiyat' })),
+      field('Cevap metni', text(c, 'text', { multi: true, rows: 4, max: 1800, ph: '{greeting} {user}, fiyatlarımız…' }), '{user} {username} {category} {number} {staff} {server} {date} … gibi değişkenler kullanılabilir.'))));
+    if (!cfg.canned.length) list.append(h('div', { class: 'empty' }, 'Henüz hazır cevap yok.'));
+  }
+  draw();
+  return h('div', { class: 'pane', id: 'pane-canned' }, h('div', { class: 'card' },
+    h('div', { class: 'bhead' }, h('div', {}, h('h2', {}, 'Hazır cevaplar'),
+      h('p', { class: 'hint' }, 'Sık verdiğin cevapları bir kez yaz, ticket içinde komutla gönder: örn. ".cevap fiyat". Komut adı Komutlar sekmesindeki "Hazır cevap gönder" eyleminden değişir. Ad yazmazsan mevcut cevapları listeler. Ayrıca Talep butonları sekmesinde "Hazır cevap gönder" eylemine bağlı bir butona cevabın adını yazarsan tek tıkla gönderilir.')),
+      h('button', { class: 'btn sm', onclick: () => { if (cfg.canned.length >= 50) return toast('En fazla 50 hazır cevap.', 'err'); cfg.canned.push({ name: '', text: '' }); dirty(); draw(); } }, '+ Cevap ekle')),
+    list));
+}
+
+/* ---------- İstatistikler ---------- */
+function statsPane() {
+  const box = h('div', {});
+  const bars = (rows, fmt = v => v) => {
+    const max = Math.max(1, ...rows.map(r => r[1]));
+    return h('div', { class: 'bars' }, rows.map(([l, v, sub]) => h('div', { class: 'brow' }, h('span', { class: 'bl', title: l }, l), h('span', { class: 'track' }, h('i', { style: `width:${Math.max(2, v / max * 100)}%` })), h('span', { class: 'bv' }, fmt(v), sub ? h('small', {}, ` ${sub}`) : null))));
+  };
+  const mins = m => (m >= 1440 ? `${Math.round(m / 144) / 10} gün` : m >= 60 ? `${Math.round(m / 6) / 10} sa` : `${m} dk`);
+  async function load() {
+    try {
+      const s = await api('admin/stats');
+      const card = (l, v, sub) => h('div', { class: 'card stat' }, h('div', { class: 'lbl' }, l), h('strong', {}, v), sub ? h('div', { class: 'muted sm' }, sub) : null);
+      box.replaceChildren(
+        h('div', { class: 'cards4' }, card('Toplam talep', s.total), card('Açık / kapalı', `${s.open} / ${s.closed}`), card('Üstlenilmemiş açık', s.unclaimed),
+          card('Ortalama çözüm süresi', s.avgResolutionMin ? mins(s.avgResolutionMin) : '—'), card('Ortalama puan', s.ratings ? `${s.avgRating} ⭐` : '—', s.ratings ? `${s.ratings} oy` : '')),
+        h('div', { class: 'split2' },
+          h('div', { class: 'card' }, h('h2', {}, 'Son 14 gün'), h('p', { class: 'hint' }, 'Açılan ve kapanan talepler'),
+            bars(s.daily.map(d => [d.day.slice(5), d.opened, `· ${d.closed} kapandı`]))),
+          h('div', { class: 'card' }, h('h2', {}, 'Puan dağılımı'), bars(s.ratingDist.map((v, i) => [`${i + 1} ⭐`, v])))),
+        h('div', { class: 'split2' },
+          h('div', { class: 'card' }, h('h2', {}, 'Yoğun saatler'), h('p', { class: 'hint' }, 'Talep açılma saati (Türkiye saati)'), bars(s.byHour.map((v, i) => [`${String(i).padStart(2, '0')}:00`, v]))),
+          h('div', { class: 'card' }, h('h2', {}, 'Haftanın günleri'), bars(s.byWeekday.map((v, i) => [['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'][i], v])))),
+        h('div', { class: 'card' }, h('h2', {}, 'Yetkililer'), h('p', { class: 'hint' }, 'Üstlenilen talepler (puan, o taleplerin ortalamasıdır)'),
+          s.byStaff.length ? h('div', { class: 'tablewrap' }, h('table', {}, h('thead', {}, h('tr', {}, ['Yetkili', 'Üstlenilen', 'Kapanan', 'Ort. çözüm', 'Ort. puan'].map(x => h('th', {}, x)))),
+            h('tbody', {}, s.byStaff.map(r => h('tr', {}, h('td', {}, r.label), h('td', {}, r.count), h('td', {}, r.closed), h('td', {}, r.avgResolutionMin ? mins(r.avgResolutionMin) : '—'), h('td', {}, r.ratings ? `${r.avgRating} ⭐ (${r.ratings})` : '—')))))) : h('div', { class: 'empty' }, 'Henüz üstlenilen talep yok.')),
+        h('div', { class: 'card' }, h('h2', {}, 'Kategoriler'),
+          s.byCategory.length ? h('div', { class: 'tablewrap' }, h('table', {}, h('thead', {}, h('tr', {}, ['Kategori', 'Talep', 'Kapanan', 'Ort. çözüm', 'Ort. puan'].map(x => h('th', {}, x)))),
+            h('tbody', {}, s.byCategory.map(r => h('tr', {}, h('td', {}, r.label), h('td', {}, r.count), h('td', {}, r.closed), h('td', {}, r.avgResolutionMin ? mins(r.avgResolutionMin) : '—'), h('td', {}, r.ratings ? `${r.avgRating} ⭐ (${r.ratings})` : '—')))))) : h('div', { class: 'empty' }, 'Henüz veri yok.')));
+    } catch (e) { box.replaceChildren(h('div', { class: 'empty' }, e.message)); }
+  }
+  load();
+  return h('div', { class: 'pane', id: 'pane-stats' }, h('div', { class: 'bhead', style: 'margin-bottom:12px' }, h('div', {}, h('h2', {}, 'İstatistikler'), h('p', { class: 'hint' }, 'Kayıtlı en son 1000 ticketın verisinden hesaplanır.')), h('button', { class: 'btn ghost sm', onclick: load }, 'Yenile')), box);
+}
+
 function overviewPane() {
   const stats = h('div', { class: 'cards4' });
   const body = h('div', { class: 'tablewrap' });
+  let data = null;
+  const F = { q: '', status: '', cat: '', rating: '', from: '', to: '' };
+  const q = h('input', { type: 'text', placeholder: 'Ara: kullanıcı, kategori, #numara, üstlenen…' });
+  const st = h('select', {}, [['', 'Tüm durumlar'], ['open', 'Açık'], ['closed', 'Kapalı'], ['deleted', 'Silindi']].map(([v, l]) => h('option', { value: v }, l)));
+  const cat = h('select', {}, h('option', { value: '' }, 'Tüm kategoriler'));
+  const rt = h('select', {}, [['', 'Tüm puanlar'], ['any', 'Puanlananlar'], ['none', 'Puanlanmayanlar'], ['1', '1 ⭐'], ['2', '2 ⭐'], ['3', '3 ⭐'], ['4', '4 ⭐'], ['5', '5 ⭐']].map(([v, l]) => h('option', { value: v }, l)));
+  const from = h('input', { type: 'date', title: 'Bu tarihten sonra' }); const to = h('input', { type: 'date', title: 'Bu tarihten önce' });
+  const filters = h('div', { class: 'filters' }, q, st, cat, rt, h('div', { style: 'display:flex;gap:6px' }, from, to));
+  const apply = () => { F.q = q.value.trim().toLowerCase(); F.status = st.value; F.cat = cat.value; F.rating = rt.value; F.from = from.value; F.to = to.value; render(); };
+  [q, st, cat, rt, from, to].forEach(el => el.addEventListener('input', apply));
+
+  function pass(t) {
+    if (F.status && t.status !== F.status) return false;
+    if (F.cat && (t.buttonLabel || '') !== F.cat) return false;
+    if (F.rating === 'any' && !t.rating) return false;
+    if (F.rating === 'none' && t.rating) return false;
+    if (/^[1-5]$/.test(F.rating) && t.rating !== Number(F.rating)) return false;
+    if (F.from && t.createdAt < new Date(F.from).getTime()) return false;
+    if (F.to && t.createdAt > new Date(F.to).getTime() + 86400000) return false;
+    if (F.q) {
+      const hay = `${pad(t.number)} #${t.number} ${t.ownerTag || ''} ${t.ownerId || ''} ${t.buttonLabel || ''} ${t.claimedByTag || ''} ${t.channelName || ''}`.toLowerCase();
+      if (!F.q.split(/\s+/).every(w => hay.includes(w.replace(/^#/, '')))) return false;
+    }
+    return true;
+  }
+
+  function render() {
+    if (!data) return;
+    const rows = data.tickets.filter(pass);
+    if (!data.tickets.length) { body.replaceChildren(h('div', { class: 'empty' }, 'Henüz ticket yok. Yukarıdaki kurulum maddeleri tamamsa alttaki çubuktan "Kaydet ve Discord\'a gönder"e bas.')); return; }
+    if (!rows.length) { body.replaceChildren(h('div', { class: 'empty' }, 'Filtrelere uyan ticket yok.')); return; }
+    body.replaceChildren(h('p', { class: 'hint', style: 'margin-bottom:8px' }, `${rows.length} / ${data.tickets.length} ticket gösteriliyor`), h('table', {},
+      h('thead', {}, h('tr', {}, ['#', 'Kullanıcı', 'Kategori', 'Durum', 'Üstlenen', 'Puan', 'Not', 'Açılış', ''].map(x => h('th', {}, x)))),
+      h('tbody', {}, rows.slice(0, 300).map(t => {
+        const gone = !t.exists && t.status !== 'deleted';
+        const acts = h('div', { class: 'acts' });
+        if (t.exists && t.status === 'open') acts.append(
+          h('button', { class: 'btn ghost sm', onclick: e => { const r = prompt('Kapatma sebebi?', 'Sorun çözüldü'); if (r) act(e.target, async () => { const x = await api('admin/tickets/close', { channelId: t.channelId, reason: r }); load(); return x; }); } }, 'Kapat'));
+        if (t.exists && t.status === 'closed') acts.append(
+          h('button', { class: 'btn good sm', onclick: e => act(e.target, async () => { const x = await api('admin/tickets/reopen', { channelId: t.channelId }); load(); return x; }) }, 'Yeniden aç'));
+        if (t.hasTranscript && data.panelTranscript) acts.append(h('a', { class: 'btn ghost sm', href: `/api/admin/transcript?channelId=${encodeURIComponent(t.channelId)}`, download: '' }, 'Kayıt'));
+        acts.append(h('button', { class: 'btn ghost sm', title: 'İç notlar (kullanıcı görmez)', onclick: async () => {
+          const list = (t.notes || []).map(n => `• ${new Date(n.at).toLocaleString('tr-TR')} · ${n.by}: ${n.text}`).join('\n') || 'Henüz not yok.';
+          const add = prompt(`Ticket #${pad(t.number)} notları:\n\n${list}\n\nYeni not eklemek için yaz (boş bırakırsan kapanır):`, '');
+          if (add && add.trim()) { try { await api('admin/tickets/note', { channelId: t.channelId, text: add.trim() }); toast('Not eklendi.'); load(); } catch (e) { toast(e.message, 'err'); } }
+        } }, 'Not'));
+        if (t.exists) acts.append(
+          h('button', { class: 'btn danger sm', onclick: e => { if (confirm(`Ticket #${pad(t.number)} kalıcı silinsin mi?`)) act(e.target, async () => { const x = await api('admin/tickets/delete', { channelId: t.channelId }); setTimeout(load, 7000); return x; }); } }, 'Sil'));
+        return h('tr', {},
+          h('td', {}, `#${pad(t.number)}`), h('td', {}, t.ownerTag || t.ownerId), h('td', {}, t.buttonLabel || '—'),
+          h('td', {}, h('span', { class: `st ${gone ? 'deleted' : t.status}` }, gone ? 'kanal yok' : { open: 'Açık', closed: 'Kapalı', deleted: 'Silindi' }[t.status] || t.status)),
+          h('td', {}, t.claimedByTag || '—'), h('td', {}, t.rating ? `${t.rating} ⭐` : '—'),
+          h('td', { title: (t.notes || []).map(n => `${n.by}: ${n.text}`).join('\n') }, t.notes?.length ? h('span', { class: 'pill' }, `📝 ${t.notes.length}`) : '—'),
+          h('td', { title: new Date(t.createdAt).toLocaleString('tr-TR') }, ago(t.createdAt)), h('td', {}, acts));
+      }))));
+  }
+
   async function load() {
     try {
       const d = await api('admin/tickets');
+      data = d;
       const c = d.counts;
       stats.replaceChildren(...[['Açık ticket', c.open], ['Kapatılan', c.closed], ['Toplam açılan', c.total], ['Kayıtlı', d.tickets.length], ['Ort. puan', c.ratings ? `${c.ratingAvg} ⭐ (${c.ratings})` : '—']]
         .map(([l, v]) => h('div', { class: 'card stat' }, h('div', { class: 'lbl' }, l), h('strong', {}, v))));
-      if (!d.tickets.length) { body.replaceChildren(h('div', { class: 'empty' }, 'Henüz ticket yok. Yukarıdaki kurulum maddeleri tamamsa alttaki çubuktan "Kaydet ve Discord\'a gönder"e bas.')); return; }
-      body.replaceChildren(h('table', {},
-        h('thead', {}, h('tr', {}, ['#', 'Kullanıcı', 'Kategori', 'Durum', 'Üstlenen', 'Puan', 'Açılış', ''].map(x => h('th', {}, x)))),
-        h('tbody', {}, d.tickets.map(t => {
-          const gone = !t.exists && t.status !== 'deleted';
-          const acts = h('div', { class: 'acts' });
-          if (t.exists && t.status === 'open') acts.append(
-            h('button', { class: 'btn ghost sm', onclick: e => { const r = prompt('Kapatma sebebi?', 'Sorun çözüldü'); if (r) act(e.target, async () => { const x = await api('admin/tickets/close', { channelId: t.channelId, reason: r }); load(); return x; }); } }, 'Kapat'));
-          if (t.exists && t.status === 'closed') acts.append(
-            h('button', { class: 'btn good sm', onclick: e => act(e.target, async () => { const x = await api('admin/tickets/reopen', { channelId: t.channelId }); load(); return x; }) }, 'Yeniden aç'));
-          if (t.exists) acts.append(
-            h('button', { class: 'btn danger sm', onclick: e => { if (confirm(`Ticket #${pad(t.number)} kalıcı silinsin mi?`)) act(e.target, async () => { const x = await api('admin/tickets/delete', { channelId: t.channelId }); setTimeout(load, 7000); return x; }); } }, 'Sil'));
-          return h('tr', {},
-            h('td', {}, `#${pad(t.number)}`), h('td', {}, t.ownerTag || t.ownerId), h('td', {}, t.buttonLabel || '—'),
-            h('td', {}, h('span', { class: `st ${gone ? 'deleted' : t.status}` }, gone ? 'kanal yok' : { open: 'Açık', closed: 'Kapalı', deleted: 'Silindi' }[t.status] || t.status)),
-            h('td', {}, t.claimedByTag || '—'), h('td', {}, t.rating ? `${t.rating} ⭐` : '—'), h('td', { title: new Date(t.createdAt).toLocaleString('tr-TR') }, ago(t.createdAt)), h('td', {}, acts));
-        }))));
+      const cats = [...new Set(d.tickets.map(t => t.buttonLabel).filter(Boolean))];
+      const cur = cat.value;
+      cat.replaceChildren(h('option', { value: '' }, 'Tüm kategoriler'), ...cats.map(c2 => h('option', { value: c2 }, c2)));
+      cat.value = cats.includes(cur) ? cur : '';
+      render();
     } catch (e) { body.replaceChildren(h('div', { class: 'empty' }, e.message)); }
   }
   load();
@@ -216,11 +344,11 @@ function overviewPane() {
   return h('div', { class: 'pane on', id: 'pane-overview' },
     diagCard(), stats,
     h('div', { class: 'card' },
-      h('div', { class: 'bhead' }, h('div', {}, h('h2', {}, 'Ticketlar'), h('p', { class: 'hint' }, 'Son 200 ticket. Kapatılan ticketı kullanıcı görmez, sadece destek ekibi görür.')),
+      h('div', { class: 'bhead' }, h('div', {}, h('h2', {}, 'Ticketlar'), h('p', { class: 'hint' }, 'Son 1000 ticket (en fazla 300 satır gösterilir; aramak için filtrele). Kapatılan ticketı kullanıcı görmez, sadece destek ekibi görür.')),
         h('div', { class: 'acts' },
           h('button', { class: 'btn ghost sm', onclick: load }, 'Yenile'),
           h('button', { class: 'btn sm', onclick: e => act(e.target, saveAndPublish) }, 'Kaydet ve Discord\'a gönder'))),
-      body));
+      filters, body));
 }
 
 // Kara liste düzenleyici: kullanıcı ID + sebep
@@ -305,6 +433,8 @@ function generalPane() {
       h('div', { class: 'grid2' },
         field('Kaç saat yazışma olmayınca uyarsın?', num(s, 'inactivityWarnHours', 1, 720)),
         field('Uyarıdan kaç saat sonra kapatsın?', num(s, 'inactivityCloseHours', 1, 720), 'Bu sürede biri yazarsa sayaç sıfırlanır. Bot her 10 dakikada bir kontrol eder; yeniden başlatılırsa uyarı sayacı sıfırlanır.'))),
+    h('div', { class: 'card' }, h('h2', {}, 'Çalışma saatleri'), hoursEditor()),
+    h('div', { class: 'card' }, h('h2', {}, 'Panel'), check(s, 'panelTranscriptDownload', 'Panelden ticket kayıtlarını (transcript) indirebileyim. Kapalıyken indirme sadece Discord\'daki butonla ve sadece ticket sahibine açıktır.')),
     h('div', { class: 'card' }, h('h2', {}, 'Sunucu ID (isteğe bağlı)'),
       field('Sunucu ID', text(cfg, 'guildId', { ph: '.env içindeki DISCORD_GUILD_ID öncelikli' }), '.env dosyasında DISCORD_GUILD_ID varsa o kullanılır.')));
 }
@@ -387,6 +517,10 @@ function buttonsPane() {
       const formBox = h('div', { style: b.formEnabled ? '' : 'display:none' }, fields,
         h('button', { class: 'btn ghost sm', onclick: () => { if (b.formFields.length >= 5) return toast('En fazla 5 soru olabilir.', 'err'); b.formFields.push({ label: '', placeholder: '', required: true }); dirty(); drawFields(); } }, '+ Soru ekle'));
       formChk.addEventListener('change', () => { b.formEnabled = formChk.checked; if (b.formEnabled && !b.formFields.length) { b.formFields.push({ label: 'Konu', placeholder: '', required: true }); drawFields(); } formBox.style.display = b.formEnabled ? '' : 'none'; dirty(); });
+      b.roleIds ||= []; b.faq ||= { enabled: false, title: '', text: '' };
+      const faqChk = h('input', { type: 'checkbox', checked: b.faq.enabled });
+      const faqBox = h('div', { style: b.faq.enabled ? '' : 'display:none' }, field('Başlık', text(b.faq, 'title', { max: 100, ph: 'Önce şuna bir göz at' })), field('Yazı', text(b.faq, 'text', { multi: true, rows: 4, max: 1500, ph: 'Sık sorulan sorular, fiyatlar, bağlantılar… ({user} {server} {date} gibi değişkenler çalışır)' })));
+      faqChk.addEventListener('change', () => { b.faq.enabled = faqChk.checked; faqBox.style.display = b.faq.enabled ? '' : 'none'; dirty(); });
       const move = d => { const k = i + d; if (k < 0 || k >= cfg.buttons.length) return; [cfg.buttons[i], cfg.buttons[k]] = [cfg.buttons[k], cfg.buttons[i]]; dirty(); draw(); refreshPreview(); };
       return h('div', { class: 'bcard' },
         h('div', { class: 'bhead' }, h('b', {}, `${i + 1}. kategori`),
@@ -397,13 +531,17 @@ function buttonsPane() {
           field('Kısa açıklama', text(b, 'description', { max: 100, ph: 'Liste seçeneğinin altında ve sitede görünür' })), field('Renk (butonlar için)', color),
           field('Bekleme süresi (dakika)', cd, '0 = sınırsız. Kullanıcı bu kategoriden bir talep açtıktan sonra bu süre dolmadan yenisini açamaz (destek ekibi muaf).'),
           field('Özel kategori', picker(b, 'categoryId', catItems(), '— Varsayılan kategori —'), 'Boşsa genel ticket kategorisi kullanılır.')),
+        h('div', { class: 'grid2' },
+          field('Bu kategoriye özel roller', rolesBox(b.roleIds), 'Bu roller sadece bu kategorideki talepleri görür ve yetkili sayılır; boşsa sadece genel destek rolleri görür. Kategoriye özel ekip kurmak için kullan.'),
+          field('Aynı anda en fazla açık talep (bu kategori)', num(b, 'maxOpen', 0, 10), '0 = sadece genel sınır (Ayarlar). Örn. 1 yaparsan kişi bu kategoriden aynı anda tek talep açabilir.')),
+        h('label', { class: 'chk' }, faqChk, 'Talep açılmadan önce SSS / bilgi yazısı göster (kullanıcı "Yine de talep aç"a basarak devam eder)'), faqBox,
         h('label', { class: 'chk' }, formChk, 'Ticket açılmadan önce form sor'), formBox);
     }));
   }
   draw();
   return h('div', { class: 'pane', id: 'pane-buttons' }, h('div', { class: 'card' },
     h('div', { class: 'bhead' }, h('div', {}, h('h2', {}, 'Ticket kategorileri'), h('p', { class: 'hint' }, 'Her kategori bir buton ve/veya açılır liste seçeneğidir. En fazla 25 (butonla birlikte liste kullanıyorsan 20).')),
-      h('button', { class: 'btn sm', onclick: () => { if (cfg.buttons.length >= 25) return toast('En fazla 25 kategori.', 'err'); cfg.buttons.push({ id: '', label: 'Yeni kategori', description: '', emoji: '', color: 'primary', categoryId: '', cooldownSeconds: 0, formEnabled: false, formFields: [] }); dirty(); draw(); refreshPreview(); } }, '+ Kategori ekle')),
+      h('button', { class: 'btn sm', onclick: () => { if (cfg.buttons.length >= 25) return toast('En fazla 25 kategori.', 'err'); cfg.buttons.push({ id: '', label: 'Yeni kategori', description: '', emoji: '', color: 'primary', categoryId: '', roleIds: [], maxOpen: 0, faq: { enabled: false, title: '', text: '' }, cooldownSeconds: 0, formEnabled: false, formFields: [] }); dirty(); draw(); refreshPreview(); } }, '+ Kategori ekle')),
     list));
 }
 
@@ -562,7 +700,9 @@ function ticketButtonsPane() {
       const upd = () => {
         const a = schema.actions[b.action] || {};
         desc.textContent = `${a.desc || ''}`;
-        respField.style.display = b.action === 'reply' ? '' : 'none';
+        respField.style.display = b.action === 'reply' || b.action === 'canned' ? '' : 'none';
+        respField.querySelector('label').textContent = b.action === 'canned' ? 'Hazır cevabın adı' : 'Cevap metni';
+        respField.querySelector('.hint').textContent = b.action === 'canned' ? 'Hazır cevaplar sekmesinde yazdığın cevabın adı (örn. fiyat). Boş bırakırsan cevap listesi gösterilir.' : 'Butona basınca bu yazı ticket kanalına yazılır. {user} {username} {server} {channel} {number} gibi değişkenler çalışır.';
         refreshTicketPreview();
       };
       const labelEl = text(b, 'label', { max: 80, ph: 'Kişi ekle' }); labelEl.addEventListener('input', refreshTicketPreview);
@@ -610,7 +750,9 @@ let ticketPreviewEl2;
 /* ---------- ana iskelet ---------- */
 function showApp() {
   const tabs = [['overview', '📊', 'Genel bakış', overviewPane], ['general', '⚙️', 'Ayarlar', generalPane], ['look', '🎨', 'Panel görünümü', appearancePane], ['buttons', '🎫', 'Kategoriler & formlar', buttonsPane],
+    ['stats', '📈', 'İstatistikler', statsPane],
     ['ticketbtn', '🔘', 'Talep butonları', ticketButtonsPane],
+    ['canned', '📋', 'Hazır cevaplar', cannedPane],
     ['commands', '⌨️', 'Komutlar', commandsPane],
     ['messages', '💬', 'Bot mesajları', () => textsPane('messages', 'Bot mesajları', 'Botun ticket açarken, kapatırken, silerken, DM\'de ve logda yazdığı bütün yazılar. {süslü} kısımlar otomatik doldurulur; her yazıda yukarıdaki tablodaki değişkenleri kullanabilirsin. Kutuyu boş bırakırsan varsayılan yazı kullanılır.', schema.messages, cfg.messages)],
     ['site', '🌐', 'Site yazıları', () => textsPane('site', 'Site yazıları', 'Ana sayfadaki bütün başlıklar, açıklamalar ve düğme yazıları. {server} {members} {open} {closed} {total} {brand} {bot} {ping} {date} {time} {day} {year} {greeting} değişkenlerini kullanabilirsin.', schema.site, cfg.site)]];

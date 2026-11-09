@@ -70,6 +70,52 @@ function findTicketChannel(client, channelId) {
   return channel;
 }
 
+const TRZ = 'Europe/Istanbul';
+const hourOf = ms => Number(new Intl.DateTimeFormat('en-GB', { timeZone: TRZ, hour: '2-digit', hour12: false }).format(new Date(ms))) % 24;
+const dayKey = ms => new Intl.DateTimeFormat('en-CA', { timeZone: TRZ }).format(new Date(ms)); // YYYY-MM-DD
+const weekdayOf = ms => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(new Intl.DateTimeFormat('en-US', { timeZone: TRZ, weekday: 'short' }).format(new Date(ms)));
+const avg = a => (a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length * 10) / 10 : 0);
+
+function computeStats(all) {
+  const recs = all.filter(t => t.status !== 'deleted' || t.createdAt);
+  const closed = recs.filter(t => t.closedAt && t.createdAt && t.closedAt >= t.createdAt);
+  const rated = recs.filter(t => t.rating);
+  const res = t => (t.closedAt - t.createdAt) / 60000; // dakika
+  const group = (keyFn, labelFn) => {
+    const m = new Map();
+    for (const t of recs) { const k = keyFn(t); if (!k) continue; (m.get(k) || m.set(k, { label: labelFn(t), items: [] }).get(k)).items.push(t); }
+    return [...m.values()].map(({ label, items }) => {
+      const c = items.filter(t => t.closedAt && t.createdAt);
+      return { label, count: items.length, closed: c.length, avgResolutionMin: Math.round(avg(c.map(res))), avgRating: avg(items.filter(t => t.rating).map(t => t.rating)), ratings: items.filter(t => t.rating).length };
+    }).sort((a, b) => b.count - a.count);
+  };
+  const today = Date.now();
+  const days = [];
+  for (let i = 13; i >= 0; i--) days.push(dayKey(today - i * 86400000));
+  const opened = Object.fromEntries(days.map(d => [d, 0])); const closedBy = { ...opened };
+  const byHour = Array(24).fill(0); const byWeekday = Array(7).fill(0); // Pzt..Paz
+  for (const t of recs) {
+    if (!t.createdAt) continue;
+    byHour[hourOf(t.createdAt)]++;
+    byWeekday[(weekdayOf(t.createdAt) + 6) % 7]++;
+    const d = dayKey(t.createdAt); if (d in opened) opened[d]++;
+    if (t.closedAt) { const c = dayKey(t.closedAt); if (c in closedBy) closedBy[c]++; }
+  }
+  return {
+    total: recs.length,
+    open: recs.filter(t => t.status === 'open').length,
+    closed: recs.filter(t => t.status === 'closed').length,
+    avgRating: avg(rated.map(t => t.rating)), ratings: rated.length,
+    ratingDist: [1, 2, 3, 4, 5].map(n => rated.filter(t => t.rating === n).length),
+    avgResolutionMin: Math.round(avg(closed.map(res))),
+    byStaff: group(t => t.claimedBy, t => t.claimedByTag || t.claimedBy),
+    byCategory: group(t => t.buttonId || t.buttonLabel, t => t.buttonLabel || t.buttonId),
+    unclaimed: recs.filter(t => t.status === 'open' && !t.claimedBy).length,
+    byHour, byWeekday,
+    daily: days.map(d => ({ day: d, opened: opened[d], closed: closedBy[d] })),
+  };
+}
+
 const handlers = {
   'GET config': async () => readConfig(),
 
@@ -123,12 +169,27 @@ const handlers = {
     const rated = store.list().filter(t => t.rating);
     return {
       counts: { ...liveCounts(client), ratings: rated.length, ratingAvg: rated.length ? Math.round(rated.reduce((a, t) => a + t.rating, 0) / rated.length * 10) / 10 : 0 },
-      tickets: store.list().slice(0, 200).map(t => {
+      tickets: store.list().slice(0, 1000).map(t => {
         const channel = guild?.channels.cache.get(t.channelId);
-        return { ...t, exists: Boolean(channel), channelName: channel?.name || '' };
+        const { transcriptKey, ...rest } = t;
+        return { ...rest, exists: Boolean(channel), channelName: channel?.name || '', hasTranscript: Boolean(transcriptKey), notes: (t.notes || []).slice(-20) };
       }),
+      panelTranscript: readConfig().settings.panelTranscriptDownload,
     };
   },
+
+  // Yetkili notu panelden ekle (kullanıcı görmez; kayda ve log kanalına yazılır)
+  'POST tickets/note': async (client, body) => {
+    const text = String(body.text || '').trim().slice(0, 500);
+    if (!text) throw new ApiError(400, 'Not boş olamaz.');
+    const rec = store.get(String(body.channelId || ''));
+    if (!rec) throw new ApiError(404, 'Ticket kaydı bulunamadı.');
+    store.upsert(rec.channelId, { notes: [...(rec.notes || []), { by: 'Web paneli', byId: '', text, at: Date.now() }].slice(-50) });
+    return { ok: true, message: 'Not eklendi.' };
+  },
+
+  // İstatistikler (kayıtlı ticketlardan hesaplanır)
+  'GET stats': async () => computeStats(store.list()),
 
   'POST panel/publish': async client => {
     const guild = needGuild(client);
@@ -161,4 +222,4 @@ const handlers = {
   },
 };
 
-module.exports = { ApiError, handlers, publicStats };
+module.exports = { ApiError, handlers, publicStats, computeStats };

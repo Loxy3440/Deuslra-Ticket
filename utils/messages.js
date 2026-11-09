@@ -128,6 +128,30 @@ const MESSAGE_DEFS = [
   D('priorityUsage', 'Öncelik', 'Öncelik yazılmadıysa', 'Bir öncelik yaz: {list}', ['list']),
   D('priorityPrompt', 'Öncelik', 'Butonla öncelik seçtirirken yazı', 'Öncelik seç:'),
 
+  // ---- Çalışma saatleri ----
+  D('outsideHours', 'Çalışma saatleri', 'Saat dışında açılan talebe yazılan not', 'Şu an çalışma saatlerimizin dışındayız ({workhours}). Talebin kaydedildi; ekibimiz aktif olunca sana dönecek.', ['workhours'], { multi: true }),
+
+  // ---- Kategori limiti ve SSS ----
+  D('categoryLimit', 'Kategori limiti ve SSS', 'Bu kategoriden fazla talep açmaya çalışınca', 'Bu kategoride zaten açık talebin var: {channel}', ['channel']),
+  D('faqTitle', 'Kategori limiti ve SSS', 'SSS penceresi başlığı (kategoride başlık boşsa)', 'Önce şuna bir göz at', [], { max: 100 }),
+  D('faqContinue', 'Kategori limiti ve SSS', 'SSS penceresindeki devam butonu', 'Yine de talep aç', [], { max: 80 }),
+
+  // ---- Devretme, taşıma, notlar, hazır cevaplar ----
+  D('transferDone', 'Devretme, taşıma, notlar, hazır cevaplar', 'Talep devredilince', '{staff}, talebi {target} kişisine devretti.', ['staff', 'target', 'targetname']),
+  D('fieldStaff', 'Devretme, taşıma, notlar, hazır cevaplar', 'Satır: yetkili', 'Yetkili'),
+  D('transferUsage', 'Devretme, taşıma, notlar, hazır cevaplar', 'Devir için kişi yazılmadıysa', 'Talebi devredeceğin kişiyi etiketle.'),
+  D('moveDone', 'Devretme, taşıma, notlar, hazır cevaplar', 'Talep başka kategoriye taşınınca', '{staff}, talebi **{newcategory}** kategorisine taşıdı.', ['staff', 'newcategory']),
+  D('moveUsage', 'Devretme, taşıma, notlar, hazır cevaplar', 'Taşıma için kategori yazılmadıysa', 'Bir kategori yaz: {list}', ['list']),
+  D('moveNotFound', 'Devretme, taşıma, notlar, hazır cevaplar', 'Kategori bulunamazsa', 'Böyle bir kategori yok. Seçenekler: {list}', ['list']),
+  D('cannedList', 'Devretme, taşıma, notlar, hazır cevaplar', 'Hazır cevap adı yazılmadıysa / bulunamazsa', 'Hazır cevaplar: {list}', ['list']),
+  D('cannedNone', 'Devretme, taşıma, notlar, hazır cevaplar', 'Hiç hazır cevap yoksa', 'Henüz hazır cevap eklenmemiş. Panel > Hazır cevaplar sekmesinden ekleyebilirsin.'),
+  D('noteSaved', 'Devretme, taşıma, notlar, hazır cevaplar', 'İç not kaydedilince', '📝 Not kaydedildi (sadece yetkililer görür).'),
+  D('noteUsage', 'Devretme, taşıma, notlar, hazır cevaplar', 'Not yazılmadıysa', 'Notu yaz: {usage}', ['usage']),
+  D('noteLogTitle', 'Devretme, taşıma, notlar, hazır cevaplar', 'Log kanalındaki not başlığı', 'Talep #{number} notu', ['number']),
+  D('notesDm', 'Devretme, taşıma, notlar, hazır cevaplar', 'Notlar DM ile gönderilince', 'Notlar DM kutuna gönderildi.'),
+  D('notesDmFail', 'Devretme, taşıma, notlar, hazır cevaplar', 'DM gönderilemezse', 'DM gönderilemedi; DM\'lerini açıp tekrar dene.'),
+  D('notesEmpty', 'Devretme, taşıma, notlar, hazır cevaplar', 'Talepte hiç not yoksa', 'Bu talepte henüz not yok.'),
+
   // ---- Ek butonlar ----
   D('renameModalTitle', 'Ek butonlar', 'Yeniden adlandırma penceresi başlığı (en fazla 45)', 'Kanalı yeniden adlandır', [], { max: 45 }),
   D('renameModalLabel', 'Ek butonlar', 'Yeni ad kutusu adı (en fazla 45)', 'Yeni kanal adı', [], { max: 45 }),

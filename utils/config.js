@@ -37,7 +37,7 @@ function defaultConfig() {
     supportRoleIds: [],
     buttons: [
       {
-        id: 'genel-destek', label: 'Genel destek', emoji: '✉️', color: 'primary', categoryId: '', formEnabled: true,
+        id: 'genel-destek', label: 'Genel destek', emoji: '✉️', color: 'primary', categoryId: '', roleIds: [], maxOpen: 0, faq: { enabled: false, title: '', text: '' }, formEnabled: true,
         formFields: [{ label: 'Konu', placeholder: 'Sana nasıl yardımcı olabiliriz?', required: true }],
       },
     ],
@@ -45,6 +45,7 @@ function defaultConfig() {
     messages: {},
     site: {},
     ticketButtons: [],
+    canned: [],
     commands: { enabled: true, prefix: '.', deleteInvocation: false, replyDeleteSeconds: 0, list: DEFAULT_COMMANDS },
     ticketEmbed: { title: 'Ticket #{number} · {category}', color: '#8B5CF6', footer: '', imageUrl: '', thumbnailUrl: '', showDetails: true },
     actions: {
@@ -55,6 +56,8 @@ function defaultConfig() {
     settings: {
       maxOpenPerUser: 1,
       ticketsEnabled: true,
+      panelTranscriptDownload: true,
+      hours: { enabled: false, days: [0, 1, 2, 3, 4, 5, 6].map(() => ({ on: true, start: '10:00', end: '22:00' })) },
       blockedUsers: [],
       ratingEnabled: true,
       inactivityEnabled: false,
@@ -91,6 +94,33 @@ const cleanChannelFormat = v => {
   const s = String(v ?? '').toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_{}-]/g, '').slice(0, 60);
   return s.includes('{number}') ? s : '';
 };
+// Çalışma saatleri: 7 gün (Pzt..Paz), her gün açık/kapalı + başlangıç/bitiş (SS:DD)
+function normalizeHours(input) {
+  const raw = input && typeof input === 'object' ? input : {};
+  const days = [0, 1, 2, 3, 4, 5, 6].map(i => {
+    const d = raw.days?.[i] || {};
+    const time = (v, fb) => (/^([01]\d|2[0-3]):[0-5]\d$/.test(String(v || '')) ? String(v) : fb);
+    return { on: bool(d.on, true), start: time(d.start, '10:00'), end: time(d.end, '22:00') };
+  });
+  return { enabled: bool(raw.enabled, false), days };
+}
+
+// Hazır cevaplar: .cevap <ad> ile (veya bir butonla) kanala gönderilen yazılar
+function normalizeCanned(input) {
+  const raw = Array.isArray(input) ? input : [];
+  if (raw.length > 50) throw new ConfigError('En fazla 50 hazır cevap olabilir.');
+  const used = new Set();
+  return raw.map((c, i) => {
+    const text = str(c?.text, 1800);
+    const name = slug(c?.name) .slice(0, 30);
+    if (!name) throw new ConfigError(`${i + 1}. hazır cevabın adı boş olamaz.`);
+    if (!text) throw new ConfigError(`"${name}" hazır cevabının metni boş.`);
+    if (used.has(name)) throw new ConfigError(`"${name}" adı iki hazır cevapta kullanılmış.`);
+    used.add(name);
+    return { name, text };
+  });
+}
+
 // Kara liste: talep açamayan kullanıcılar
 function normalizeBlocked(input) {
   const seen = new Set();
@@ -229,6 +259,9 @@ function normalizeConfig(input) {
       cooldownSeconds: clampInt(b?.cooldownSeconds, 0, 604800, 0),
       formEnabled: bool(b?.formEnabled, false) && formFields.length > 0,
       formFields,
+      roleIds: [...new Set((Array.isArray(b?.roleIds) ? b.roleIds : []).map(cleanId).filter(Boolean))].slice(0, 10),
+      maxOpen: clampInt(b?.maxOpen, 0, 10, 0),
+      faq: { enabled: bool(b?.faq?.enabled, false) && Boolean(str(b?.faq?.text, 1500)), title: str(b?.faq?.title, 100), text: str(b?.faq?.text, 1500) },
     };
   });
 
@@ -267,12 +300,15 @@ function normalizeConfig(input) {
     colors: Object.fromEntries(['main', 'success', 'warning', 'danger'].map(k => [k, cleanColorOr(c.colors?.[k], d.colors[k])])),
     commands: normalizeCommands(c.commands, d.commands),
     ticketButtons: normalizeTicketButtons(c.ticketButtons),
+    canned: normalizeCanned(c.canned),
     messages: normalizeTexts(c.messages, MESSAGE_DEFS),
     site: normalizeTexts(c.site, SITE_DEFS),
     actions: { close: action('close'), claim: action('claim'), callStaff: action('callStaff') },
     settings: {
       maxOpenPerUser: clampInt(s.maxOpenPerUser, 1, 5, d.settings.maxOpenPerUser),
       ticketsEnabled: bool(s.ticketsEnabled, d.settings.ticketsEnabled),
+      panelTranscriptDownload: bool(s.panelTranscriptDownload, d.settings.panelTranscriptDownload),
+      hours: normalizeHours(s.hours),
       blockedUsers: normalizeBlocked(s.blockedUsers),
       ratingEnabled: bool(s.ratingEnabled, d.settings.ratingEnabled),
       inactivityEnabled: bool(s.inactivityEnabled, d.settings.inactivityEnabled),
@@ -344,5 +380,5 @@ function writePanelState(state) { db.set('panel-message', state); }
 
 module.exports = {
   ConfigError, PANEL_STYLES, ROOT, DATA_DIR, CONFIG_PATH, defaultConfig, normalizeConfig,
-  readConfig, writeConfig, getGuildId, buildTicketTopic, parseTicket, readPanelState, writePanelState,
+  readConfig, writeConfig, getGuildId, buildTicketTopic, parseTicket, readPanelState, writePanelState, slug,
 };

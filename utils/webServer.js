@@ -3,6 +3,9 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { ApiError, handlers, publicStats } = require('./adminApi');
+const { readConfig } = require('./config');
+const store = require('./store');
+const db = require('./db');
 
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 const COOKIE = 'dd_session';
@@ -118,6 +121,17 @@ async function handleApi(req, res, url, client) {
 
   if (method === 'POST' && route === 'logout') {
     return sendJson(res, 200, { ok: true }, { 'Set-Cookie': `${COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secureFlag(req)}` });
+  }
+
+  // Transcript'i panelden indir (ayardan kapatılabilir)
+  if (method === 'GET' && route === 'admin/transcript') {
+    if (!isAuthed(req)) throw new ApiError(401, 'Giriş yapmalısın.');
+    if (!readConfig().settings.panelTranscriptDownload) throw new ApiError(403, 'Panelden transcript indirme kapalı (Ayarlar).');
+    const rec = store.get(url.searchParams.get('channelId') || '');
+    const doc = rec?.transcriptKey ? await db.getBlob(rec.transcriptKey).catch(() => null) : null;
+    if (!doc) throw new ApiError(404, 'Bu ticket için kayıtlı transcript yok.');
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Disposition': `attachment; filename="${String(doc.name || 'transcript.html').replace(/[^\w.\-]/g, '_')}"`, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+    return res.end(doc.html);
   }
 
   if (route.startsWith('admin/')) {

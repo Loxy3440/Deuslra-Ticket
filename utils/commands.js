@@ -1,5 +1,6 @@
 const { EmbedBuilder } = require('discord.js');
-const { parseTicket, readConfig, writeConfig } = require('./config');
+const { parseTicket, readConfig, writeConfig, buildTicketTopic } = require('./config');
+const { slug } = require('./config');
 const { isStaff } = require('./permissions');
 const { ACTIONS } = require('./commandDefs');
 const { msg: baseMsg, renderAll } = require('./messages');
@@ -150,6 +151,61 @@ async function performAction(ctx) {
       const ok = await Promise.race([channel.setName(name).then(() => true).catch(() => false), sleep(8000).then(() => false)]);
       return say(ok ? msg(config, 'cmdRenamed', { name }) : msg(config, 'cmdRenameFailed'));
     }
+    case 'transfer': {
+      const target = ctx.targetUser;
+      if (!target || target.bot) return say(msg(config, 'transferUsage'));
+      await channel.permissionOverwrites.edit(target.id, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true, AttachFiles: true, EmbedLinks: true }).catch(() => null);
+      await Promise.race([channel.edit({ topic: buildTicketTopic({ ...ticket, claimId: target.id }) }).catch(() => null), sleep(8000)]);
+      store.upsert(channel.id, { claimedBy: target.id, claimedByTag: target.username });
+      await channel.send({ content: msg(config, 'transferDone', { target: `<@${target.id}>`, targetname: target.username }), allowedMentions: { users: [target.id] } }).catch(() => null);
+      return ctx.afterQuiet?.();
+    }
+    case 'move': {
+      const q = slug(rest);
+      const list = config.buttons.map(b => b.label).join(' / ');
+      if (!q) return say(msg(config, 'moveUsage', { list }));
+      const dest = config.buttons.find(b => b.id === q || slug(b.label) === q) || config.buttons.find(b => slug(b.label).startsWith(q));
+      if (!dest) return say(msg(config, 'moveNotFound', { list }));
+      const old = config.buttons.find(b => b.id === ticket.buttonId);
+      const keep = new Set([...config.supportRoleIds, ...(dest.roleIds || [])]);
+      for (const id of (old?.roleIds || [])) if (!keep.has(id)) await channel.permissionOverwrites.delete(id).catch(() => null);
+      for (const id of (dest.roleIds || [])) if (guild.roles.cache.has(id)) await channel.permissionOverwrites.edit(id, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true, AttachFiles: true, EmbedLinks: true }).catch(() => null);
+      const parentId = dest.categoryId || config.ticketCategoryId;
+      if (parentId && channel.parentId !== parentId) await Promise.race([channel.setParent(parentId, { lockPermissions: false }).catch(() => null), sleep(8000)]);
+      await Promise.race([channel.edit({ topic: buildTicketTopic({ ...ticket, buttonId: dest.id }) }).catch(() => null), sleep(8000)]);
+      store.upsert(channel.id, { buttonId: dest.id, buttonLabel: dest.label });
+      await channel.send({ content: msg(config, 'moveDone', { newcategory: dest.label, category: dest.label }), allowedMentions: { parse: [] } }).catch(() => null);
+      return ctx.afterQuiet?.();
+    }
+    case 'canned': {
+      const q = slug(rest);
+      const item = (config.canned || []).find(c => c.name === q);
+      if (!(config.canned || []).length) return say(msg(config, 'cannedNone'));
+      if (!item) return say(msg(config, 'cannedList', { list: config.canned.map(c => c.name).join(', ') }));
+      const text = renderAll(config, item.text, { ...ticketVars(config, { channel, guild, actor }), staff: invoker.staff, staffname: invoker.staffname, staffid: invoker.staffid });
+      await channel.send({ content: text.slice(0, 2000), allowedMentions: { parse: ['users'] } }).catch(() => null);
+      return ctx.afterQuiet?.();
+    }
+    case 'note': {
+      const textNote = rest.trim().slice(0, 500);
+      if (!textNote) return say(msg(config, 'noteUsage', { usage: usageOf() }));
+      const rec = store.get(channel.id) || {};
+      const notes = [...(rec.notes || []), { by: user.username, byId: user.id, text: textNote, at: Date.now() }].slice(-50);
+      store.upsert(channel.id, { notes });
+      await ctx.hideInvocation?.();
+      await t.logEvent(guild, config, {
+        title: msg(config, 'noteLogTitle', { number: pad(ticket.number) }), color: config.colors.main, description: textNote,
+        fields: [{ name: msg(config, 'fieldChannel'), value: `${channel}`, inline: true }, { name: msg(config, 'fieldStaff') , value: `<@${user.id}>`, inline: true }],
+      });
+      return say(msg(config, 'noteSaved'));
+    }
+    case 'notes': {
+      const notes = store.get(channel.id)?.notes || [];
+      if (!notes.length) return say(msg(config, 'notesEmpty'));
+      const body = notes.map(n => `• <t:${unix(n.at)}:f> **${n.by}**: ${n.text}`).join('\n').slice(0, 3900);
+      const sent = await user.send({ embeds: [new EmbedBuilder().setColor(config.colors.main).setTitle(`#${pad(ticket.number)}`).setDescription(body)] }).then(() => true).catch(() => false);
+      return say(msg(config, sent ? 'notesDm' : 'notesDmFail'));
+    }
     case 'ticketinfo': {
       const rec = store.get(channel.id);
       const cat = config.buttons.find(b => b.id === ticket.buttonId);
@@ -205,13 +261,14 @@ async function runCommand({ message, config, cmd, rest }) {
     lastUse.set(key, Date.now());
   }
 
-  const targetUser = ['useradd', 'userremove', 'block', 'unblock'].includes(cmd.action) ? await resolveUser(message, rest) : null;
+  const targetUser = ['useradd', 'userremove', 'block', 'unblock', 'transfer'].includes(cmd.action) ? await resolveUser(message, rest) : null;
   const sendReply = async text => {
     const sent = await message.reply({ content: text, allowedMentions: { users: [message.author.id], repliedUser: false } }).catch(() => null);
     const sec = config.commands.replyDeleteSeconds;
     if (sent && sec > 0) setTimeout(() => sent.delete().catch(() => null), sec * 1000);
   };
-  return performAction({ config, cmd, channel, guild: message.guild, member: message.member, user: message.author, ticket, rest, targetUser, say, sendReply, usageOf });
+  const hideInvocation = () => message.delete().catch(() => null);
+  return performAction({ config, cmd, channel, guild: message.guild, member: message.member, user: message.author, ticket, rest, targetUser, say, sendReply, usageOf, hideInvocation });
 }
 
 module.exports = { findCommand, runCommand, performAction, canUse, lastUse, priorityLabel };

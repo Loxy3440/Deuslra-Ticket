@@ -1,7 +1,8 @@
 const { PermissionFlagsBits, PermissionsBitField } = require('discord.js');
 
 function isSupportMember(member, config) {
-  const roleIds = config.supportRoleIds ?? [];
+  // Destek rolleri + kategoriye özel roller (kategori ekibi de destek ekibi sayılır)
+  const roleIds = [...(config.supportRoleIds ?? []), ...(config.buttons ?? []).flatMap(b => b.roleIds ?? [])];
   if (!roleIds.length) return false;
   const roles = member?.roles;
   if (roles?.cache) return roleIds.some(id => roles.cache.has(id));

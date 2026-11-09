@@ -34,10 +34,10 @@ async function run(interaction, config, def, ticket, extra = {}) {
   const cmd = { ...def, name: def.label, ticketOnly: false };
   await performAction({
     config, cmd, channel: interaction.channel, guild: interaction.guild, member: interaction.member, user: interaction.user,
-    ticket, rest: extra.rest || '', targetUser: extra.targetUser || null, say, sendReply, usageOf: () => def.label,
+    ticket, rest: extra.rest || (def.action === 'canned' ? def.response : ''), targetUser: extra.targetUser || null, say, sendReply, usageOf: () => def.label,
   });
   // "Özel cevap": cevap kanala yazıldı, geçici "düşünüyor" mesajı kaldırılır
-  if (def.action === 'reply') await interaction.deleteReply().catch(() => null);
+  if (['reply', 'canned', 'transfer', 'move'].includes(def.action)) await interaction.deleteReply().catch(() => null);
 }
 
 function textModal(customId, title, label, placeholder, required) {
@@ -60,6 +60,12 @@ async function handleCustomButton(interaction, config, id) {
     }
     case 'rename':
       return interaction.showModal(textModal(`ticket-custom-modal:rename:${def.id}`, msg(config, 'renameModalTitle'), msg(config, 'renameModalLabel'), msg(config, 'renameModalPlaceholder'), true));
+    case 'move':
+      return interaction.reply({
+        content: msg(config, 'moveUsage', { list: '' }).replace(/:\s*$/, ':'), ephemeral: true,
+        components: [new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(`ticket-custom-move:${def.id}`).setPlaceholder(msg(config, 'customUserPlaceholder').slice(0, 100))
+          .addOptions(config.buttons.slice(0, 25).map(b => ({ label: b.label.slice(0, 100), value: b.id }))))],
+      });
     case 'priority':
       return interaction.reply({
         content: msg(config, 'priorityPrompt'), ephemeral: true,
@@ -70,6 +76,7 @@ async function handleCustomButton(interaction, config, id) {
     case 'userremove':
     case 'block':
     case 'unblock':
+    case 'transfer':
       return interaction.reply({
         content: msg(config, 'customUserPrompt'), ephemeral: true,
         components: [new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId(`ticket-custom-user:${def.id}`).setPlaceholder(msg(config, 'customUserPlaceholder').slice(0, 100)).setMinValues(1).setMaxValues(1))],
@@ -107,6 +114,13 @@ async function handleCustomPriority(interaction, config, id) {
   return run(interaction, config, p.def, p.ticket, { rest: interaction.values[0] });
 }
 
+async function handleCustomMove(interaction, config, id) {
+  const p = await prepare(interaction, config, id);
+  if (!p) return undefined;
+  await interaction.deferUpdate();
+  return run(interaction, config, p.def, p.ticket, { rest: interaction.values[0] });
+}
+
 async function handleCustomConfirm(interaction, config, id) {
   const p = await prepare(interaction, config, id);
   if (!p) return undefined;
@@ -114,4 +128,4 @@ async function handleCustomConfirm(interaction, config, id) {
   return run(interaction, config, p.def, p.ticket);
 }
 
-module.exports = { handleCustomPriority, handleCustomButton, handleCustomModal, handleCustomUser, handleCustomConfirm };
+module.exports = { handleCustomMove, handleCustomPriority, handleCustomButton, handleCustomModal, handleCustomUser, handleCustomConfirm };

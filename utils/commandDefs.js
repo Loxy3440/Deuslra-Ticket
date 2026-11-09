@@ -63,6 +63,31 @@ const ACTIONS = {
     desc: 'Kara listedeki kişinin tekrar talep açmasına izin verir.',
     links: 'Ayarlar sekmesindeki "Kara liste"den de yapılabilir.',
   },
+  transfer: {
+    label: 'Talebi başka yetkiliye devret', usage: '@yetkili', needsTicket: true, perm: 'staff',
+    desc: 'Talebin sorumlusunu etiketlenen kişi yapar (üstlenen o olur), kişi kanalı göremiyorsa görmesini sağlar ve kanalda duyurur.',
+    links: 'Butona bağlarsan kişi seçtirir.',
+  },
+  move: {
+    label: 'Talebi başka kategoriye taşı', usage: '<kategori>', needsTicket: true, perm: 'staff',
+    desc: 'Talebin kategorisini değiştirir: kanal o kategorinin Discord kategorisine taşınır ve kategoriye özel roller kanalı görmeye başlar. Kategori adı ya da kısa adı (id) yazılır.',
+    links: 'Butona bağlarsan kategori listesi açılır.',
+  },
+  canned: {
+    label: 'Hazır cevap gönder', usage: '<ad>', needsTicket: false, perm: 'staff',
+    desc: 'Panelde "Hazır cevaplar" sekmesinde yazdığın bir cevabı kanala gönderir. Ad yazılmazsa mevcut cevaplar listelenir. Cevap içinde {user} {category} {number} gibi değişkenler kullanılabilir.',
+    links: 'Butona bağlarsan "Özel cevap" kutusuna hazır cevabın adını yaz.',
+  },
+  note: {
+    label: 'İç not ekle (sadece yetkililer)', usage: '<not metni>', needsTicket: true, perm: 'staff',
+    desc: 'Talebe kullanıcının görmediği bir not ekler: kayda, panele ve log kanalına yazılır, kanalda görünmez (komut mesajın silinir).',
+    links: 'Notları panelde Ticketlar listesinden de görebilirsin.',
+  },
+  notes: {
+    label: 'İç notları listele (DM)', usage: '', needsTicket: true, perm: 'staff',
+    desc: 'Bu talepteki iç notları kanalda göstermek yerine sana DM olarak gönderir.',
+    links: '',
+  },
   help: {
     label: 'Komut listesi', usage: '', needsTicket: false, perm: 'everyone',
     desc: 'Yazan kişinin kullanabildiği komutları ve açıklamalarını listeler.',
@@ -101,6 +126,11 @@ const DEFAULT_COMMANDS = [
   mk('priority', 'priority', { description: 'Ticket önceliğini değiştirir' }),
   mk('block', 'block', { description: 'Kişiyi kara listeye ekler' }),
   mk('unblock', 'unblock', { description: 'Kişiyi kara listeden çıkarır' }),
+  mk('transfer', 'transfer', { description: 'Talebi başka yetkiliye devreder' }),
+  mk('move', 'move', { description: 'Talebi başka kategoriye taşır' }),
+  mk('cevap', 'canned', { description: 'Hazır cevap gönderir' }),
+  mk('not', 'note', { description: 'Talebe iç not ekler' }),
+  mk('notlar', 'notes', { description: 'İç notları DM atar' }),
   mk('help', 'help', { description: 'Kullanabildiğin komutları listeler' }),
 ];
 

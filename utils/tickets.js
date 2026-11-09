@@ -12,6 +12,7 @@ const { buildTranscript } = require('./transcript');
 const { replyPrivate } = require('./replies');
 const { msg, renderAll } = require('./messages');
 const { ticketVars } = require('./variables');
+const { workStatus } = require('./hours');
 const baseMsg = msg;
 
 const PANEL_ACTOR = { id: null, label: 'Web paneli', mention: '**Web paneli**' };
@@ -128,12 +129,17 @@ async function openTicket({ guild, user, config, button, answers = [] }) {
     return { error: msg(config, 'alreadyOpen', { channel: `${mine[0]}` }) };
   }
 
+  if (button.maxOpen > 0) {
+    const same = mine.filter(ch => parseTicket(ch)?.buttonId === button.id);
+    if (same.length >= button.maxOpen) return { error: msg(config, 'categoryLimit', { channel: `${same[0]}` }) };
+  }
+
   const categoryId = button.categoryId || config.ticketCategoryId;
   const category = categoryId ? guild.channels.cache.get(categoryId) : null;
   const parent = category?.type === ChannelType.GuildCategory ? category.id : undefined;
   const number = store.nextNumber();
   const safe = user.username.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 20) || 'user';
-  const roleIds = config.supportRoleIds.filter(id => guild.roles.cache.has(id));
+  const roleIds = [...new Set([...config.supportRoleIds, ...(button.roleIds || [])])].filter(id => guild.roles.cache.has(id));
 
   const channel = await guild.channels.create({
     name: config.settings.channelNameFormat.replace(/\{number\}/g, pad(number)).replace(/\{user\}/g, safe).slice(0, 100),
@@ -181,6 +187,11 @@ async function openTicket({ guild, user, config, button, answers = [] }) {
     components: buildOpenRows(config),
     allowedMentions: { users: [user.id], roles: ping },
   });
+
+  const ws = workStatus(config);
+  if (ws.enabled && !ws.open) {
+    await channel.send({ embeds: [new EmbedBuilder().setColor(config.colors.warning).setDescription(msg(config, 'outsideHours', { ...V, workhours: ws.summary }))] }).catch(() => null);
+  }
 
   store.upsert(channel.id, {
     channelId: channel.id, number, ownerId: user.id, ownerTag: user.username, buttonId: button.id,
@@ -238,7 +249,7 @@ async function closeTicket({ channel, config, actor, reason }) {
     }
   }
 
-  store.upsert(channel.id, { status: 'closed', closedAt: Date.now(), closedBy: actor.label, closeReason: why });
+  store.upsert(channel.id, { status: 'closed', closedAt: Date.now(), closedBy: actor.label, closeReason: why, ...(tKey ? { transcriptKey: tKey } : {}) });
   await logEvent(guild, config, {
     title: msg(config, 'logClosedTitle', { number: pad(t.number) }), color: config.colors.warning,
     fields: [
@@ -293,7 +304,7 @@ async function deleteTicket({ channel, config, actor, reason = '' }) {
       .setFooter({ text: msg(config, 'deletingFooter', { staff: actor.label }).slice(0, 2048) })],
   }).catch(() => null);
 
-  store.upsert(channel.id, { status: 'deleted', deletedAt: Date.now(), deletedBy: actor.label });
+  store.upsert(channel.id, { status: 'deleted', deletedAt: Date.now(), deletedBy: actor.label, ...(tKey ? { transcriptKey: tKey } : {}) });
   await logEvent(channel.guild, config, {
     title: msg(config, 'logDeletedTitle', { number: pad(t.number) }), color: config.colors.danger,
     fields: [
@@ -362,13 +373,23 @@ async function guard(interaction, config, { staff = false, ownerOrStaff = false,
   return t;
 }
 
-async function handleOpenButton(interaction, config, buttonId) {
+async function handleOpenButton(interaction, config, buttonId, { skipFaq = false } = {}) {
   const button = config.buttons.find(b => b.id === buttonId);
   if (!button) return replyPrivate(interaction, msg(config, 'buttonGone'));
   const wait = cooldownLeftMs(interaction, config, button);
   if (wait > 0) return replyPrivate(interaction, msg(config, 'cooldownOpen', { time: `<t:${unix(Date.now() + wait)}:R>` }));
+  // SSS: kategori önce kısa bir bilgi gösterir, kullanıcı "Yine de talep aç"a basarsa devam edilir
+  if (button.faq?.enabled && button.faq.text && !skipFaq) {
+    const faq = new EmbedBuilder().setColor(config.colors.main).setTitle((button.faq.title || msg(config, 'faqTitle')).slice(0, 256))
+      .setDescription(renderAll(config, button.faq.text, ticketVars(config, { guild: interaction.guild, user: interaction.user, member: interaction.member, button })).slice(0, 4000));
+    return interaction.reply({
+      ephemeral: true, embeds: [faq],
+      components: [new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`ticket-faq-go:${button.id}`).setLabel(msg(config, 'faqContinue').slice(0, 80)).setStyle(ButtonStyle.Success))],
+    });
+  }
   if (button.formEnabled && button.formFields.length) return interaction.showModal(buildTicketForm(button, config));
-  await interaction.deferReply({ ephemeral: true });
+  if (skipFaq && interaction.isMessageComponent()) await interaction.deferUpdate(); // SSS mesajı sonucla değiştirilir
+  else await interaction.deferReply({ ephemeral: true });
   return createFromInteraction(interaction, config, button, []);
 }
 
@@ -515,7 +536,7 @@ async function handleRemoveUser(interaction, config, user) {
 }
 
 module.exports = {
-  PANEL_ACTOR, pad,
+  PANEL_ACTOR, pad, logEvent,
   openTicket, closeTicket, reopenTicket, deleteTicket, claimTicket,
   buildCloseModal, handleCloseButton, gateAction, markAction,
   handleTranscriptDownload, handleRating, handleOpenButton, handleFormSubmit, handleClose, handleReopen, handleDeleteRequest, handleDelete,

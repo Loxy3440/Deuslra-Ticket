@@ -9,6 +9,7 @@ const cb = require('../utils/customButtons');
 async function handleButton(interaction, config) {
   const id = interaction.customId;
   if (id.startsWith('transcript-dl:')) return t.handleTranscriptDownload(interaction, config, id.slice('transcript-dl:'.length));
+  if (id.startsWith('ticket-faq-go:')) return t.handleOpenButton(interaction, config, id.slice('ticket-faq-go:'.length), { skipFaq: true });
   if (id.startsWith('ticket-rate:')) { const [, ch, n] = id.split(':'); return t.handleRating(interaction, config, ch, n); }
   if (id.startsWith('ticket-custom:')) return cb.handleCustomButton(interaction, config, id.slice('ticket-custom:'.length));
   if (id.startsWith('ticket-custom-confirm:')) return cb.handleCustomConfirm(interaction, config, id.slice('ticket-custom-confirm:'.length));
@@ -26,6 +27,7 @@ async function handleButton(interaction, config) {
 
 // Açılır listeden kategori seçildiğinde: buton tıklamasıyla aynı akış (form varsa modal, yoksa direkt ticket).
 async function handleSelect(interaction, config) {
+  if (interaction.customId.startsWith('ticket-custom-move:')) return cb.handleCustomMove(interaction, config, interaction.customId.slice('ticket-custom-move:'.length));
   if (interaction.customId.startsWith('ticket-custom-prio:')) return cb.handleCustomPriority(interaction, config, interaction.customId.slice('ticket-custom-prio:'.length));
   if (interaction.customId !== 'ticket-select') return undefined;
   // Seçilen seçenek menüde işaretli kalmasın diye paneli kısa süre sonra aynı haline döndür.

@@ -33,6 +33,7 @@ function greetingFor(hour) {
 function globalVars(config) {
   const now = new Date();
   const p = parts(now);
+  const ws = require('./hours').workStatus(config, now);
   const guild = clientRef?.isReady?.() ? (clientRef.guilds.cache.get(config?.guildId || process.env.DISCORD_GUILD_ID) || clientRef.guilds.cache.first()) : null;
   let counts = { open: 0, total: 0 };
   try { const s = require('./store').stats(); counts = { open: s.open, total: s.total }; } catch { /* kayıt yoksa 0 */ }
@@ -47,6 +48,8 @@ function globalVars(config) {
     totaltickets: String(counts.total),
     date: p.date, time: p.time, datetime: `${p.date} ${p.time}`, day: p.day, month: p.month, year: p.year,
     greeting: greetingFor(p.hour),
+    workhours: ws.summary || '—',
+    workstatus: ws.enabled ? (ws.open ? 'çalışma saatleri içinde' : 'çalışma saatleri dışında') : 'her zaman açık',
     timestamp: `<t:${unix(now.getTime())}:F>`,
     relative: `<t:${unix(now.getTime())}:R>`,
   };
@@ -115,6 +118,7 @@ const VAR_DOCS = [
   ['Her yerde', 'datetime', 'Tarih ve saat', '08.11.2026 23:41'], ['Her yerde', 'day', 'Haftanın günü', 'Pazar'],
   ['Her yerde', 'month', 'Ay adı', 'Kasım'], ['Her yerde', 'year', 'Yıl', '2026'],
   ['Her yerde', 'greeting', 'Saate göre selam (Günaydın / İyi günler / İyi akşamlar / İyi geceler)', 'İyi akşamlar'],
+  ['Her yerde', 'workhours', 'Çalışma saatleri özeti', 'Pzt 10:00–22:00, Sal …'], ['Her yerde', 'workstatus', 'Şu an çalışma saatlerinde miyiz', 'çalışma saatleri içinde'],
   ['Her yerde', 'timestamp', 'Discord\'da okuyanın saatine göre tam tarih', '8 Kasım 2026 23:41'],
   ['Her yerde', 'relative', 'Discord\'da "şimdi / 5 dk önce" biçimi', 'şimdi'],
   ['Talep yazılarında', 'user', 'Talep sahibi (etiket)', '@Ali'], ['Talep yazılarında', 'username', 'Talep sahibinin adı', 'ali'],
