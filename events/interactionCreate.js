@@ -27,6 +27,7 @@ async function handleButton(interaction, config) {
 
 // Açılır listeden kategori seçildiğinde: buton tıklamasıyla aynı akış (form varsa modal, yoksa direkt ticket).
 async function handleSelect(interaction, config) {
+  if (interaction.customId.startsWith('ticket-pick:')) { const [, a, d] = interaction.customId.split(':'); return cb.handlePick(interaction, config, a, d); }
   if (interaction.customId.startsWith('ticket-custom-move:')) return cb.handleCustomMove(interaction, config, interaction.customId.slice('ticket-custom-move:'.length));
   if (interaction.customId.startsWith('ticket-custom-prio:')) return cb.handleCustomPriority(interaction, config, interaction.customId.slice('ticket-custom-prio:'.length));
   if (interaction.customId !== 'ticket-select') return undefined;
@@ -46,7 +47,7 @@ module.exports = {
       } else if (interaction.isButton()) {
         await handleButton(interaction, config);
       } else if (interaction.isUserSelectMenu()) {
-        if (interaction.customId.startsWith('ticket-custom-user:')) await cb.handleCustomUser(interaction, config, interaction.customId.slice('ticket-custom-user:'.length));
+        if (interaction.customId.startsWith('ticket-pick:')) { const [, a, d] = interaction.customId.split(':'); await cb.handlePick(interaction, config, a, d); } else if (interaction.customId.startsWith('ticket-custom-user:')) await cb.handleCustomUser(interaction, config, interaction.customId.slice('ticket-custom-user:'.length));
       } else if (interaction.isStringSelectMenu()) {
         await handleSelect(interaction, config);
       } else if (interaction.isModalSubmit()) {

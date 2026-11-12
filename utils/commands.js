@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, UserSelectMenuBuilder, StringSelectMenuBuilder, OverwriteType } = require('discord.js');
 const { parseTicket, readConfig, writeConfig, buildTicketTopic } = require('./config');
 const { slug } = require('./config');
 const { isStaff } = require('./permissions');
@@ -64,6 +64,10 @@ async function performAction(ctx) {
   const vars = () => ({ ...ticketVars(config, { channel, guild, actor }), ...invoker });
   const msg = (c, k, v) => baseMsg(c, k, { ...vars(), ...v });
   const sw = cmd.action;
+  const pickId = `ticket-pick:${sw}:${ctx.defId || ''}`;
+  const userMenu = () => [new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId(pickId).setPlaceholder(msg(config, 'customUserPlaceholder').slice(0, 100)).setMinValues(1).setMaxValues(1))];
+  const listMenu = (opts, ph) => [new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(pickId).setPlaceholder(String(ph).slice(0, 100)).addOptions(opts.slice(0, 25)))];
+  const userById = async id => (await ctx.fetchUser?.(id)) || { id, username: store.get(channel.id)?.ownerTag || id, bot: false, toString: () => `<@${id}>` };
 
   switch (sw) {
     case 'close': {
@@ -100,7 +104,7 @@ async function performAction(ctx) {
     case 'useradd': {
       if (ticket.status !== 'open') return say(msg(config, 'ticketClosed'));
       const user = ctx.targetUser;
-      if (!user) return say(msg(config, 'cmdUserNotFound', { usage: usageOf() }));
+      if (!user) return say(msg(config, 'customUserPrompt'), { components: userMenu() });
       await channel.permissionOverwrites.edit(user.id, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true, AttachFiles: true, EmbedLinks: true });
       await channel.send({ content: msg(config, 'userAddedChannel', { user: `${user}` }), allowedMentions: { users: [user.id] } });
       return say(msg(config, 'userAddedReply', { username: user.username }));
@@ -108,7 +112,15 @@ async function performAction(ctx) {
     case 'userremove': {
       if (ticket.status !== 'open') return say(msg(config, 'ticketClosed'));
       const user = ctx.targetUser;
-      if (!user) return say(msg(config, 'cmdUserNotFound', { usage: usageOf() }));
+      if (!user) {
+        // Sadece talebe sonradan eklenmiş kişiler listelenir (sahip ve bot hariç)
+        const botId = channel.client?.user?.id || guild.client?.user?.id;
+        const added = [...(channel.permissionOverwrites?.cache?.values?.() || [])]
+          .filter(ow => ow.type === OverwriteType.Member && ow.id !== botId && ow.id !== ticket.ownerId && (!ow.allow || ow.allow.has('ViewChannel')))
+          .map(ow => ({ label: (guild.members.cache.get(ow.id)?.displayName || guild.client?.users?.cache?.get(ow.id)?.username || ow.id).slice(0, 100), value: ow.id }));
+        if (!added.length) return say(msg(config, 'removeNone'));
+        return say(msg(config, 'removePrompt'), { components: listMenu(added, msg(config, 'removePrompt')) });
+      }
       if (ticket.ownerId === user.id) return say(msg(config, 'cannotRemoveOwner'));
       await channel.permissionOverwrites.delete(user.id).catch(() => null);
       await channel.send({ content: msg(config, 'userRemovedChannel', { username: user.username }), allowedMentions: { parse: [] } });
@@ -127,7 +139,8 @@ async function performAction(ctx) {
       return say(msg(config, 'priorityChanged', { priority: priorityLabel(config, key) }));
     }
     case 'block': {
-      const target = ctx.targetUser;
+      let target = ctx.targetUser;
+      if (!target && ticket?.ownerId) target = await userById(ticket.ownerId); // kişi yazılmadıysa talebin sahibi
       if (!target) return say(msg(config, 'cmdUserNotFound', { usage: usageOf() }));
       if (target.id === user.id || target.bot) return say(msg(config, 'blockSelf'));
       const reason = rest.replace(/<@!?\d+>/g, '').replace(/\b\d{15,25}\b/, '').trim().slice(0, 200);
@@ -138,7 +151,11 @@ async function performAction(ctx) {
     }
     case 'unblock': {
       const target = ctx.targetUser;
-      if (!target) return say(msg(config, 'cmdUserNotFound', { usage: usageOf() }));
+      if (!target) {
+        const blocked = readConfig().settings.blockedUsers;
+        if (!blocked.length) return say(msg(config, 'blockListEmpty'));
+        return say(msg(config, 'unblockPrompt'), { components: listMenu(blocked.map(b => ({ label: (b.tag || b.id).slice(0, 100), description: (b.reason || '').slice(0, 100) || undefined, value: b.id })), msg(config, 'unblockPrompt')) });
+      }
       const cur = readConfig();
       if (!cur.settings.blockedUsers.some(b => b.id === target.id)) return say(msg(config, 'blockNotFound', { username: target.username }));
       cur.settings.blockedUsers = cur.settings.blockedUsers.filter(b => b.id !== target.id);
@@ -153,7 +170,8 @@ async function performAction(ctx) {
     }
     case 'transfer': {
       const target = ctx.targetUser;
-      if (!target || target.bot) return say(msg(config, 'transferUsage'));
+      if (!target) return say(msg(config, 'transferUsage'), { components: userMenu() });
+      if (target.bot) return say(msg(config, 'transferUsage'));
       await channel.permissionOverwrites.edit(target.id, { ViewChannel: true, SendMessages: true, ReadMessageHistory: true, AttachFiles: true, EmbedLinks: true }).catch(() => null);
       await Promise.race([channel.edit({ topic: buildTicketTopic({ ...ticket, claimId: target.id }) }).catch(() => null), sleep(8000)]);
       store.upsert(channel.id, { claimedBy: target.id, claimedByTag: target.username });
@@ -163,7 +181,7 @@ async function performAction(ctx) {
     case 'move': {
       const q = slug(rest);
       const list = config.buttons.map(b => b.label).join(' / ');
-      if (!q) return say(msg(config, 'moveUsage', { list }));
+      if (!q) return say(msg(config, 'movePrompt'), { components: listMenu(config.buttons.map(b => ({ label: b.label.slice(0, 100), value: b.id, description: (b.description || '').slice(0, 100) || undefined })), msg(config, 'movePrompt')) });
       const dest = config.buttons.find(b => b.id === q || slug(b.label) === q) || config.buttons.find(b => slug(b.label).startsWith(q));
       if (!dest) return say(msg(config, 'moveNotFound', { list }));
       const old = config.buttons.find(b => b.id === ticket.buttonId);
@@ -230,7 +248,8 @@ async function performAction(ctx) {
     }
     case 'reply': {
       const text = renderAll(config, cmd.response, vars());
-      return ctx.sendReply(text.slice(0, 2000));
+      await ctx.sendReply(text.slice(0, 2000));
+      return ctx.afterQuiet?.();
     }
     default: return undefined;
   }
@@ -261,14 +280,15 @@ async function runCommand({ message, config, cmd, rest }) {
     lastUse.set(key, Date.now());
   }
 
-  const targetUser = ['useradd', 'userremove', 'block', 'unblock', 'transfer'].includes(cmd.action) ? await resolveUser(message, rest) : null;
+  const targetUser = ['useradd', 'userremove', 'block', 'unblock', 'transfer'].includes(cmd.action) ? await resolveUser(message, rest) : null; // yoksa performAction liste/sahip kullanır
   const sendReply = async text => {
     const sent = await message.reply({ content: text, allowedMentions: { users: [message.author.id], repliedUser: false } }).catch(() => null);
     const sec = config.commands.replyDeleteSeconds;
     if (sent && sec > 0) setTimeout(() => sent.delete().catch(() => null), sec * 1000);
   };
   const hideInvocation = () => message.delete().catch(() => null);
-  return performAction({ config, cmd, channel, guild: message.guild, member: message.member, user: message.author, ticket, rest, targetUser, say, sendReply, usageOf, hideInvocation });
+  const fetchUser = id => message.client.users.fetch(id).catch(() => null);
+  return performAction({ config, cmd, channel, guild: message.guild, member: message.member, user: message.author, ticket, rest, targetUser, say, sendReply, usageOf, hideInvocation, fetchUser });
 }
 
 module.exports = { findCommand, runCommand, performAction, canUse, lastUse, priorityLabel };

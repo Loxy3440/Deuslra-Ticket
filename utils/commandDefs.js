@@ -55,12 +55,12 @@ const ACTIONS = {
   },
   block: {
     label: 'Kişiyi kara listeye ekle', usage: '@kişi [sebep]', needsTicket: false, perm: 'staff',
-    desc: 'Etiketlenen veya ID\'si yazılan kişi artık talep açamaz. Komuttan sonra yazdığın kısım sebep olarak kaydedilir ve kişiye gösterilir.',
-    links: 'Ayarlar sekmesindeki "Kara liste"den de ekleyip çıkarabilirsin. Butona bağlarsan kişi seçtirir.',
+    desc: 'Etiketlenen veya ID\'si yazılan kişi artık talep açamaz. Kişi yazmazsan (veya butonla kullanırsan) talebin sahibi kara listeye alınır. Komuttan sonra yazdığın kısım sebep olarak kaydedilir ve kişiye gösterilir.',
+    links: 'Ayarlar sekmesindeki "Kara liste"den de ekleyip çıkarabilirsin.',
   },
   unblock: {
     label: 'Kişiyi kara listeden çıkar', usage: '@kişi', needsTicket: false, perm: 'staff',
-    desc: 'Kara listedeki kişinin tekrar talep açmasına izin verir.',
+    desc: 'Kara listedeki kişinin tekrar talep açmasına izin verir. Kişi yazmazsan (veya butonla kullanırsan) kara listedekilerin listesi açılır, oradan seçersin.',
     links: 'Ayarlar sekmesindeki "Kara liste"den de yapılabilir.',
   },
   transfer: {

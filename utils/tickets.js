@@ -171,6 +171,12 @@ async function openTicket({ guild, user, config, button, answers = [] }) {
       { name: msg(config, 'fieldOpened'), value: `<t:${unix(Date.now())}:R>`, inline: true },
     );
   }
+  // Yazıyla komutlar kapalıysa (veya Message Content Intent yoksa) komut anlatan ipuçları gösterilmez
+  const cmdsUsable = config.commands.enabled && process.env.MESSAGE_CONTENT_INTENT === 'true';
+  const tipLines = (te.tips || []).filter(x => cmdsUsable || !/\{(cmd_\w+|prefix)\}/i.test(x));
+  if (te.tipsEnabled && tipLines.length) {
+    embed.addFields({ name: fill(te.tipsTitle).slice(0, 256) || '💡', value: tipLines.map(x => `• ${fill(x)}`).join('\n').slice(0, 1024) });
+  }
   const imgFile = await attachmentFor(te.imageUrl, 'ticket-image');
   const thumbFile = await attachmentFor(te.thumbnailUrl, 'ticket-thumb');
   if (imgFile) embed.setImage(`attachment://${imgFile.name}`); else if (te.imageUrl) embed.setImage(te.imageUrl);

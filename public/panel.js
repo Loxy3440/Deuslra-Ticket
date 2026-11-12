@@ -139,16 +139,26 @@ function ticketBtnRow() {
   return h('div', { class: 'bt' }, [...['close', 'claim', 'callStaff'].map(k => h('span', { class: cfg.actions[k].color }, `${cfg.actions[k].emoji ? cfg.actions[k].emoji + ' ' : ''}${cfg.actions[k].label}`)),
     ...(cfg.ticketButtons || []).filter(b => b.enabled && b.where !== 'closed' && b.label).map(b => h('span', { class: b.color }, `${b.emoji ? b.emoji + ' ' : ''}${b.label}`))]);
 }
+function tipsArea() {
+  const el = h('textarea', { rows: 5, maxlength: 3000 });
+  el.value = (cfg.ticketEmbed.tips || []).join('\n');
+  el.addEventListener('input', () => { cfg.ticketEmbed.tips = el.value.split('\n').map(x => x.trim()).filter(Boolean).slice(0, 10); dirty(); refreshTicketPreview(); });
+  return el;
+}
+
 function refreshTicketPreview() {
   if (typeof ticketPreviewEl2 !== 'undefined' && ticketPreviewEl2) ticketPreviewEl2.replaceChildren(h('div', { class: 'dc' }, ticketBtnRow()));
   if (!ticketPreviewEl) return;
   const te = cfg.ticketEmbed, st = cfg.settings;
   const sample = { user: '@kullanıcı', username: 'kullanıcı', displayname: 'Kullanıcı', userid: '123456789012345678', category: cfg.buttons[0]?.label || 'Kategori', number: '0001', server: 'Sunucu', brand: cfg.brandName, greeting: 'Merhaba', date: new Date().toLocaleDateString('tr-TR'), time: new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }), supportroles: '@Destek Ekibi', staff: '@yetkili', priority: 'normal', status: 'açık', channel: '#ticket-0001' };
+  sample.prefix = cfg.commands.prefix; sample.btn_close = cfg.actions.close.label; sample.btn_claim = cfg.actions.claim.label; sample.btn_callstaff = cfg.actions.callStaff.label;
+  for (const c of cfg.commands.list) if (c.enabled && !('cmd_' + c.action in sample)) sample['cmd_' + c.action] = c.name;
   const fill = t => String(t || '').replace(/\{(\w+)\}/g, (m, k) => (k.toLowerCase() in sample ? sample[k.toLowerCase()] : m));
   const emb = h('div', { class: 'emb' });
   emb.style.borderLeftColor = te.color || '#8B5CF6';
   emb.append(h('div', { class: 't' }, fill(te.title) || 'Ticket #0001'), h('div', { class: 'd' }, fill(st.welcomeMessage)));
   if (te.showDetails) emb.append(h('div', { class: 'd', style: 'display:flex;gap:18px;font-size:12px' }, h('span', {}, 'Açan\n@kullanıcı'), h('span', {}, `Kategori\n${cfg.buttons[0]?.label || ''}`), h('span', {}, 'Açılış\nşimdi')));
+  if (te.tipsEnabled && te.tips?.length) emb.append(h('div', { class: 'd', style: 'font-size:12px;margin-top:6px' }, h('b', {}, fill(te.tipsTitle)), '\n' + te.tips.map(x => `• ${fill(x)}`).join('\n')));
   if (/^https?:\/\//.test(te.imageUrl)) emb.append(h('img', { src: te.imageUrl, alt: '' }));
   emb.append(h('div', { class: 'f' }, te.footer || cfg.brandName));
   ticketPreviewEl.replaceChildren(h('div', { class: 'dc' }, emb,
@@ -483,6 +493,11 @@ function appearancePane() {
           field('Küçük görsel URL', text(cfg.ticketEmbed, 'thumbnailUrl', { type: 'url', ph: 'https://…', k: 'ticketEmbed.thumbnailUrl' }))),
         field('Büyük görsel / GIF URL', text(cfg.ticketEmbed, 'imageUrl', { type: 'url', ph: 'https://…/resim.gif', k: 'ticketEmbed.imageUrl' }), 'Doğrudan .gif adresi koy. Tenor veya Giphy sayfa linki yapıştırırsan kaydederken otomatik GIF adresine çevrilir. Discord\'a yüklediğin dosyanın linki bir süre sonra bozulur; imgur gibi kalıcı bir adres daha güvenli.'),
         check(cfg.ticketEmbed, 'showDetails', 'Açan / Kategori / Açılış bilgi satırını göster')),
+      h('div', { class: 'card' }, h('h2', {}, 'İpuçları (talep açılınca gösterilir)'),
+        h('p', { class: 'hint', style: 'margin-bottom:12px' }, 'Talep mesajının altında kullanıcıya "ne yapabilirsin" diye gösterilen kısa maddeler. Örn: yetkiliyi nasıl çağıracağı, talebi nasıl kapatacağı.'),
+        check(cfg.ticketEmbed, 'tipsEnabled', 'İpuçlarını göster'),
+        field('Başlık', text(cfg.ticketEmbed, 'tipsTitle', { max: 100, ph: '💡 İpuçları' })),
+        field('Maddeler (her satır bir madde, en fazla 10)', tipsArea(), 'Değişkenler: {btn_callstaff} {btn_claim} {btn_close} (buton yazıları), {prefix} + {cmd_callstaff} {cmd_close} {cmd_useradd} {cmd_rename} … (komut adları: cmd_ + eylem adı), ayrıca {user} {category} {server}. Komut yazan satırlar, yazıyla komutlar kapalıysa otomatik gizlenir.')),
       h('div', { class: 'card' }, h('h2', {}, 'Talep içindeki butonlar'),
         h('p', { class: 'hint', style: 'margin-bottom:12px' }, 'Bekleme süresi: biri butona bastıktan sonra süre dolana kadar o ticketta butona kimse tekrar basamaz. 0 = sınırsız. Örnek: "Ekibi çağır" için 300 saniye yazarsan ekip sürekli etiketlenemez.'),
         ...['close', 'claim', 'callStaff'].map(k => h('div', { class: 'bcard' },

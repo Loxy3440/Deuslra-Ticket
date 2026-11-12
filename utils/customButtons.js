@@ -35,9 +35,9 @@ async function run(interaction, config, def, ticket, extra = {}) {
   await performAction({
     config, cmd, channel: interaction.channel, guild: interaction.guild, member: interaction.member, user: interaction.user,
     ticket, rest: extra.rest || (def.action === 'canned' ? def.response : ''), targetUser: extra.targetUser || null, say, sendReply, usageOf: () => def.label,
+    defId: def.id || '', fetchUser: id => interaction.client.users.fetch(id).catch(() => null), afterQuiet: () => interaction.deleteReply().catch(() => null),
   });
   // "Özel cevap": cevap kanala yazıldı, geçici "düşünüyor" mesajı kaldırılır
-  if (['reply', 'canned', 'transfer', 'move'].includes(def.action)) await interaction.deleteReply().catch(() => null);
 }
 
 function textModal(customId, title, label, placeholder, required) {
@@ -60,26 +60,11 @@ async function handleCustomButton(interaction, config, id) {
     }
     case 'rename':
       return interaction.showModal(textModal(`ticket-custom-modal:rename:${def.id}`, msg(config, 'renameModalTitle'), msg(config, 'renameModalLabel'), msg(config, 'renameModalPlaceholder'), true));
-    case 'move':
-      return interaction.reply({
-        content: msg(config, 'moveUsage', { list: '' }).replace(/:\s*$/, ':'), ephemeral: true,
-        components: [new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(`ticket-custom-move:${def.id}`).setPlaceholder(msg(config, 'customUserPlaceholder').slice(0, 100))
-          .addOptions(config.buttons.slice(0, 25).map(b => ({ label: b.label.slice(0, 100), value: b.id }))))],
-      });
     case 'priority':
       return interaction.reply({
         content: msg(config, 'priorityPrompt'), ephemeral: true,
         components: [new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(`ticket-custom-prio:${def.id}`).setPlaceholder(msg(config, 'priorityPrompt').slice(0, 100))
           .addOptions(['low', 'normal', 'high', 'urgent'].map(k => ({ label: priorityLabel(config, k).slice(0, 100), value: k }))))],
-      });
-    case 'useradd':
-    case 'userremove':
-    case 'block':
-    case 'unblock':
-    case 'transfer':
-      return interaction.reply({
-        content: msg(config, 'customUserPrompt'), ephemeral: true,
-        components: [new ActionRowBuilder().addComponents(new UserSelectMenuBuilder().setCustomId(`ticket-custom-user:${def.id}`).setPlaceholder(msg(config, 'customUserPlaceholder').slice(0, 100)).setMinValues(1).setMaxValues(1))],
       });
     case 'delete':
       return interaction.reply({
@@ -121,6 +106,29 @@ async function handleCustomMove(interaction, config, id) {
   return run(interaction, config, p.def, p.ticket, { rest: interaction.values[0] });
 }
 
+// Komut/butonla açılan seçim listelerinden (kişi, kategori, çıkarılacak kişi...) seçim yapılınca
+async function handlePick(interaction, config, action, defId) {
+  let def; let ticket;
+  if (defId) {
+    const p = await prepare(interaction, config, defId);
+    if (!p || p.def.action !== action) return undefined;
+    ({ def, ticket } = p);
+  } else {
+    if (!isStaff(interaction.member, config)) return replyPrivate(interaction, msg(config, 'cmdNoPermission'));
+    ticket = parseTicket(interaction.channel);
+    def = { id: '', name: action, label: action, action, response: '', cooldownSeconds: 0, ticketOnly: false };
+  }
+  await interaction.deferUpdate();
+  const extra = {};
+  if (interaction.isUserSelectMenu()) extra.targetUser = interaction.users.first() || null;
+  else {
+    const v = interaction.values[0];
+    if (action === 'move') extra.rest = v;
+    else extra.targetUser = (await interaction.client.users.fetch(v).catch(() => null)) || { id: v, username: v, bot: false, toString: () => `<@${v}>` };
+  }
+  return run(interaction, config, def, ticket, extra);
+}
+
 async function handleCustomConfirm(interaction, config, id) {
   const p = await prepare(interaction, config, id);
   if (!p) return undefined;
@@ -128,4 +136,4 @@ async function handleCustomConfirm(interaction, config, id) {
   return run(interaction, config, p.def, p.ticket);
 }
 
-module.exports = { handleCustomMove, handleCustomPriority, handleCustomButton, handleCustomModal, handleCustomUser, handleCustomConfirm };
+module.exports = { handlePick, handleCustomMove, handleCustomPriority, handleCustomButton, handleCustomModal, handleCustomUser, handleCustomConfirm };

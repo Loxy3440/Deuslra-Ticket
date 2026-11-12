@@ -138,6 +138,11 @@ const MESSAGE_DEFS = [
 
   // ---- Devretme, taşıma, notlar, hazır cevaplar ----
   D('transferDone', 'Devretme, taşıma, notlar, hazır cevaplar', 'Talep devredilince', '{staff}, talebi {target} kişisine devretti.', ['staff', 'target', 'targetname']),
+  D('movePrompt', 'Devretme, taşıma, notlar, hazır cevaplar', 'Taşıma: kategori listesi üstündeki yazı', 'Hangi kategoriye taşınsın?'),
+  D('removePrompt', 'Devretme, taşıma, notlar, hazır cevaplar', 'Çıkarma: kişi listesi üstündeki yazı', 'Talepten kimi çıkaracaksın?'),
+  D('removeNone', 'Devretme, taşıma, notlar, hazır cevaplar', 'Çıkarılacak kimse yoksa', 'Bu talebe sonradan eklenmiş (çıkarılabilir) kimse yok.'),
+  D('unblockPrompt', 'Devretme, taşıma, notlar, hazır cevaplar', 'Kara listeden çıkarma: liste üstündeki yazı', 'Kimi kara listeden çıkaracaksın?'),
+  D('blockListEmpty', 'Devretme, taşıma, notlar, hazır cevaplar', 'Kara liste boşsa', 'Kara listede kimse yok.'),
   D('fieldStaff', 'Devretme, taşıma, notlar, hazır cevaplar', 'Satır: yetkili', 'Yetkili'),
   D('transferUsage', 'Devretme, taşıma, notlar, hazır cevaplar', 'Devir için kişi yazılmadıysa', 'Talebi devredeceğin kişiyi etiketle.'),
   D('moveDone', 'Devretme, taşıma, notlar, hazır cevaplar', 'Talep başka kategoriye taşınınca', '{staff}, talebi **{newcategory}** kategorisine taşıdı.', ['staff', 'newcategory']),
