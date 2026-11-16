@@ -146,6 +146,8 @@ const handlers = {
   'GET schema': async () => ({
     messages: MESSAGE_DEFS, site: SITE_DEFS, vars: VAR_DOCS, actions: ACTIONS, permissions: PERMISSIONS,
     intentOn: process.env.MESSAGE_CONTENT_INTENT === 'true', // yazıyla komutlar için şart
+    presenceOn: process.env.USE_PRESENCE === 'true', // çekiliş "durum" şartı için
+    membersOn: process.env.GUILD_MEMBERS_INTENT === 'true', // çekiliş "davet" şartı için
   }),
 
   'GET meta': async client => {
@@ -213,7 +215,7 @@ const handlers = {
     const channel = guild.channels.cache.get(String(body.channelId || '') || config.giveaways.channelId);
     if (!channel) throw new ApiError(400, 'Çekilişin yapılacağı kanalı seç (ya da Ayarlar\'da varsayılan kanalı belirle).');
     const ms = gw.parseDuration(body.duration);
-    const res = await gw.start({ client, config, channel, hostId: client.user.id, ms, winners: Math.min(Math.max(parseInt(body.winners, 10) || 1, 1), 20), prize: String(body.prize || '').trim().slice(0, 200), roleId: String(body.roleId || '') });
+    const res = await gw.start({ client, config, channel, hostId: client.user.id, ms, winners: Math.min(Math.max(parseInt(body.winners, 10) || 1, 1), 20), prize: String(body.prize || '').trim().slice(0, 200), roleId: String(body.roleId || ''), requirements: body.requirements });
     if (res.error) throw new ApiError(400, res.error);
     return { ok: true, message: 'Çekiliş başlatıldı.', url: res.url };
   },

@@ -11,9 +11,14 @@ if (!token) {
   process.exit(1);
 }
 
-const intents = [GatewayIntentBits.Guilds];
-// Transcript'te mesaj metni görünsün istiyorsan (Developer Portal'da da açman gerekir)
-if (process.env.MESSAGE_CONTENT_INTENT === 'true') intents.push(GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent);
+// Çekiliş şartları için: mesaj sayısı (GuildMessages), ses aktifliği (GuildVoiceStates), davet takibi (GuildInvites) normal intent'lerdir, portalda açmak gerekmez.
+const intents = [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildInvites];
+// Transcript'te mesaj metni / yazıyla komutlar için (Developer Portal'da da açman gerekir)
+if (process.env.MESSAGE_CONTENT_INTENT === 'true') intents.push(GatewayIntentBits.MessageContent);
+// Çekiliş "durum" şartı için (Developer Portal > Presence Intent de açık olmalı)
+if (process.env.USE_PRESENCE === 'true') intents.push(GatewayIntentBits.GuildPresences);
+// Çekiliş "davet sayısı" şartı için: kim girdi / çıktı olaylarını görmek (Developer Portal > Server Members Intent de açık olmalı)
+if (process.env.GUILD_MEMBERS_INTENT === 'true') intents.push(GatewayIntentBits.GuildMembers);
 
 const client = new Client({ intents });
 client.commands = new Collection();
@@ -46,4 +51,4 @@ process.on('uncaughtException', err => console.error('[HATA] uncaughtException:'
   });
 })();
 
-for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { db.close().finally(() => process.exit(0)); });
+for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { try { require('./utils/giveaways').flush(); } catch { /* yok say */ } db.close().finally(() => process.exit(0)); });

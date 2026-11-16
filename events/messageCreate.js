@@ -2,6 +2,7 @@ const { Events } = require('discord.js');
 const { readConfig } = require('../utils/config');
 const { findCommand, runCommand } = require('../utils/commands');
 const { msg } = require('../utils/messages');
+const gw = require('../utils/giveaways');
 
 // Her mesajda ayarları baştan okumamak için kısa süreli önbellek (ayar değişince en geç 3 sn'de geçerli olur)
 let cached = null; let cachedAt = 0;
@@ -13,7 +14,9 @@ function config() {
 module.exports = {
   name: Events.MessageCreate,
   async execute(message) {
-    if (message.author.bot || !message.guild || !message.content) return;
+    if (message.author.bot || !message.guild) return;
+    gw.trackMessage(message); // çekiliş "mesaj sayısı" şartı (mesaj metnini okumaz)
+    if (!message.content) return;
     const cfg = config();
     const { enabled, prefix } = cfg.commands;
     if (!enabled || !message.content.startsWith(prefix)) return;

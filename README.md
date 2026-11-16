@@ -74,6 +74,34 @@ Notlar:
 - Ücretsiz Render servisi 15 dakika istek gelmezse uyur ve bot çevrimdışı olur. Uyumasın istiyorsan UptimeRobot ile 5 dakikada bir `https://ADIN.onrender.com/healthz` adresini pingle ya da ücretli planı seç.
 - Panel internete açık olacağı için güçlü `PANEL_PASSWORD` şart; 5 yanlış denemeden sonra giriş geçici kilitlenir.
 
+## Çekiliş şartları
+
+Her çekiliş için isteğe bağlı şart eklenebilir (panelde **Çekilişler > Çekiliş başlat > Şartlar**, slash komutta seçenekler, yazıyla `|` sonrası):
+
+| Şart | Panel / slash | Yazıyla (`.gstart ... \| ...`) | Ne zaman sayılır |
+|---|---|---|---|
+| Rol | Gereken roller / `rol` | `rol=@rol` | Çekiliş bitince rolü olmalı |
+| Sunucu etiketi (tag) | Sunucu etiketi / `tag` | `tag` | Bitince profilinde bu sunucunun etiketi takılı olmalı |
+| Özel durum | Özel durum yazısı / `durum` | `durum=.gg/deuslra` | Bitince özel durumunda bu yazı geçmeli |
+| Ses aktifliği | Ses (dakika) / `ses` | `ses=30` | Çekiliş başladıktan sonra seste geçirilen süre (AFK kanalı sayılmaz) |
+| Mesaj sayısı | Mesaj sayısı / `mesaj` | `mesaj=50` | Çekiliş başladıktan sonra yazılan mesaj (3 sn içindeki mesajlar tek sayılır) |
+| Davet sayısı | Davet sayısı / `invite` | `invite=2` | Çekiliş başladıktan sonra davetiyle girenler (çıkan düşer) |
+
+Örnek: `.gstart 1d 2 Discord Nitro | invite=2 mesaj=50 ses=30 tag rol=@VIP durum=.gg/deuslra`
+
+Nasıl çalışır:
+- Şartlar **katılımı engellemez**. Çekiliş bitince kazananlar kontrol edilir.
+- Şartı yapmayan kazanan sonuç mesajında yine kazanan olarak görünür, ama **Ödülünü Al**'a basınca "kazanmadın" cevabı alır ve eksik şartlar yazılır.
+- **Tekrar Çek** (buton, `/cekilis tekrar`, `.greroll`, panel) adet yazılmazsa şartı yapmadığı için düşen kişi sayısı kadar yeni kazanan çeker. Önceki geçerli kazananlar kendi sonuç mesajındaki **Ödülünü Al** butonunu kullanmaya devam eder; yeni kazananlar da kendi (yeni) sonuç mesajından alır.
+- Çalışan çekilişte **Şartlarım** butonu herkese kendi durumunu gösterir (örn. mesaj 12/50).
+- Panelde şartı yapmayan kazananın yanında ❌ görünür; sitede gösterilmez.
+
+Gerekli ayarlar (sadece ilgili şartı kullanacaksan):
+- **Durum şartı:** Developer Portal > Bot > **Presence Intent** açık + `.env` içinde `USE_PRESENCE=true`. Çevrimdışı görünen kişinin durumu okunamaz.
+- **Davet şartı:** Developer Portal > Bot > **Server Members Intent** açık + `.env` içinde `GUILD_MEMBERS_INTENT=true` + botun **Sunucuyu Yönet** izni. Sadece bot açıkken olan girişler sayılır.
+- Rol, tag, ses ve mesaj şartları için ek ayar gerekmez (ses ve mesaj için normal intent'ler kodda otomatik açılır).
+- Bot yeniden başlarsa, o an seste olan kişilerin süresi yeniden başlatma anından itibaren sayılır.
+
 ## Komutlar
 
 | Komut | Ne yapar | Kim kullanır |

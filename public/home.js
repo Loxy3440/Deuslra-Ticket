@@ -76,7 +76,7 @@ function drawGiveaways(s) {
     c.append(el('b', 'gw-prize', it.prize));
     const meta = el('p', 'muted');
     meta.textContent = ended
-      ? `${it.winners.length ? `${T.gwWinnersLabel || 'Kazanan'}: ${it.winners.map(w => w.tag + (w.claimed ? ' ✅' : '')).join(', ')}` : ''}`
+      ? `${it.winners.length ? `${T.gwWinnersLabel || 'Kazanan'}: ${it.winners.filter(w => !w.disq).map(w => w.tag + (w.claimed ? ' ✅' : '')).join(', ')}` : ''}`
       : `${T.gwEndsLabel || 'Bitiş'}: ${new Date(it.endsAt).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })}`;
     c.append(meta, el('span', 'badge', `${nf(it.entries)} ${T.gwEntriesLabel || 'katılımcı'} · ${it.winnersCount} ${(T.gwWinnersLabel || 'Kazanan').toLowerCase()}`));
     return c;

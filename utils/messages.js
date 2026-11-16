@@ -170,6 +170,24 @@ const MESSAGE_DEFS = [
   D('gwTicketGiveaway', 'Çekiliş', 'Ödül talebi: çekiliş alanı', 'Çekiliş', [], { max: 60 }),
   D('gwTicketWon', 'Çekiliş', 'Ödül talebi: kazanma zamanı alanı', 'Kazanma zamanı', [], { max: 60 }),
 
+  // ---- Çekiliş şartları ----
+  D('gwFieldReqs', 'Çekiliş', 'Alan adı: şartlar', 'Şartlar', [], { max: 60 }),
+  D('gwStatusBtn', 'Çekiliş', '"Şartlarım" butonu yazısı', 'Şartlarım', [], { max: 80 }),
+  D('gwStatusTitle', 'Çekiliş', '"Şartlarım" cevabı başlığı', '📋 Çekiliş şartların', [], { max: 100 }),
+  D('gwStatusNone', 'Çekiliş', 'Çekilişte şart yoksa "Şartlarım" cevabı', 'Bu çekilişte ek şart yok, katılman yeterli.'),
+  D('gwStatusWait', 'Çekiliş', '"Şartlarım"a çok sık basılırsa', 'Biraz yavaş: birkaç saniye sonra tekrar dene.'),
+  D('gwReqRole', 'Çekiliş', 'Şart satırı: rol', '{roles} rolüne sahip ol', ['roles']),
+  D('gwReqTag', 'Çekiliş', 'Şart satırı: sunucu etiketi', 'Sunucu etiketini (tag) profiline tak'),
+  D('gwReqStatus', 'Çekiliş', 'Şart satırı: özel durum', 'Özel durumunda `{text}` yazsın', ['text']),
+  D('gwReqVoice', 'Çekiliş', 'Şart satırı: ses aktifliği', 'Çekiliş boyunca seste en az {n} dakika kal', ['n']),
+  D('gwReqMessages', 'Çekiliş', 'Şart satırı: mesaj sayısı', 'Çekiliş boyunca en az {n} mesaj yaz', ['n']),
+  D('gwReqInvites', 'Çekiliş', 'Şart satırı: davet sayısı', 'Çekiliş boyunca en az {n} kişiyi sunucuya davet et', ['n']),
+  D('gwResultReqNote', 'Çekiliş', 'Sonuç mesajı: şart notu', 'Şartı yerine getirmeyen kazananın hakkı düşer, yetkililer tekrar çekiliş yapar.', [], { multi: true }),
+  D('gwReqFailed', 'Çekiliş', 'Kazanan şartları yapmadan "Ödülünü Al"a basarsa', '❌ Bu çekilişi **kazanmadın**: şartları yerine getirmediğin için hakkın düştü.\n{missing}', ['missing'], { multi: true }),
+  D('gwNeedPresence', 'Çekiliş', 'Durum şartı seçildi ama bot durumu göremiyorsa', 'Durum şartı için botta Presence Intent açık olmalı (Developer Portal + .env USE_PRESENCE=true).'),
+  D('gwNeedMembers', 'Çekiliş', 'Davet şartı seçildi ama bot üyeleri göremiyorsa', 'Davet şartı için botta Server Members Intent açık olmalı (Developer Portal + .env GUILD_MEMBERS_INTENT=true).'),
+  D('gwNeedManageGuild', 'Çekiliş', 'Davet şartı seçildi ama botun izni yoksa', 'Davet şartı için botun "Sunucuyu Yönet" izni olmalı.'),
+
   // ---- Çalışma saatleri ----
   D('outsideHours', 'Çalışma saatleri', 'Saat dışında açılan talebe yazılan not', 'Şu an çalışma saatlerimizin dışındayız ({workhours}). Talebin kaydedildi; ekibimiz aktif olunca sana dönecek.', ['workhours'], { multi: true }),
 
