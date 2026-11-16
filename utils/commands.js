@@ -168,6 +168,11 @@ async function performAction(ctx) {
       const ok = await Promise.race([channel.setName(name).then(() => true).catch(() => false), sleep(8000).then(() => false)]);
       return say(ok ? msg(config, 'cmdRenamed', { name }) : msg(config, 'cmdRenameFailed'));
     }
+    case 'noreminder': {
+      const off = !(store.get(channel.id)?.noReminder);
+      store.upsert(channel.id, { noReminder: off });
+      return say(msg(config, off ? 'reminderOff' : 'reminderOn'));
+    }
     case 'transfer': {
       const target = ctx.targetUser;
       if (!target) return say(msg(config, 'transferUsage'), { components: userMenu() });
@@ -237,6 +242,10 @@ async function performAction(ctx) {
           { name: msg(config, 'fieldOpened'), value: rec?.createdAt ? `<t:${unix(rec.createdAt)}:R>` : none, inline: true },
         ).setFooter({ text: config.brandName });
       return say('', { embeds: [embed] });
+    }
+    case 'gstart': case 'gend': case 'greroll': case 'gcancel': case 'glist': {
+      const r = await require('./giveaways').runCommand({ action: sw, config, client: guild.client, channel, member, user, rest });
+      return say(r.text, { allowedMentions: { parse: [] } });
     }
     case 'help': {
       const lines = config.commands.list

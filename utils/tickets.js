@@ -117,7 +117,7 @@ const transcriptRow = (config, key) => (key ? [new ActionRowBuilder().addCompone
 /* Çekirdek işlemler (Discord komutları ve web paneli ortak kullanır)   */
 /* ------------------------------------------------------------------ */
 
-async function openTicket({ guild, user, config, button, answers = [] }) {
+async function openTicket({ guild, user, config, button, answers = [], bypassLimit = false, extraEmbeds = [], extraRecord = {} }) {
   if (!config.settings.ticketsEnabled) return { error: msg(config, 'ticketsDisabled') };
   const blocked = config.settings.blockedUsers.find(b => b.id === user.id);
   if (blocked) return { error: msg(config, 'blockedUser', { reason: blocked.reason || msg(config, 'blockNoReason') }) };
@@ -125,11 +125,11 @@ async function openTicket({ guild, user, config, button, answers = [] }) {
     const t = parseTicket(ch);
     return t && t.ownerId === user.id && t.status === 'open';
   });
-  if (mine.length >= config.settings.maxOpenPerUser) {
+  if (!bypassLimit && mine.length >= config.settings.maxOpenPerUser) {
     return { error: msg(config, 'alreadyOpen', { channel: `${mine[0]}` }) };
   }
 
-  if (button.maxOpen > 0) {
+  if (!bypassLimit && button.maxOpen > 0) {
     const same = mine.filter(ch => parseTicket(ch)?.buttonId === button.id);
     if (same.length >= button.maxOpen) return { error: msg(config, 'categoryLimit', { channel: `${same[0]}` }) };
   }
@@ -182,7 +182,7 @@ async function openTicket({ guild, user, config, button, answers = [] }) {
   if (imgFile) embed.setImage(`attachment://${imgFile.name}`); else if (te.imageUrl) embed.setImage(te.imageUrl);
   if (thumbFile) embed.setThumbnail(`attachment://${thumbFile.name}`); else if (te.thumbnailUrl) embed.setThumbnail(te.thumbnailUrl);
   const answerFields = answers.filter(a => a.value).slice(0, 5).map(a => ({ name: a.label.slice(0, 256), value: a.value.slice(0, 1000) }));
-  const embeds = [embed];
+  const embeds = [embed, ...extraEmbeds];
   if (answerFields.length) embeds.push(new EmbedBuilder().setColor(config.colors.main).setTitle(msg(config, 'formAnswersTitle').slice(0, 256)).addFields(answerFields));
 
   const ping = config.settings.pingSupportOnOpen ? roleIds : [];
@@ -201,7 +201,7 @@ async function openTicket({ guild, user, config, button, answers = [] }) {
 
   store.upsert(channel.id, {
     channelId: channel.id, number, ownerId: user.id, ownerTag: user.username, buttonId: button.id,
-    buttonLabel: button.label, status: 'open', createdAt: Date.now(), answers: answerFields,
+    buttonLabel: button.label, status: 'open', createdAt: Date.now(), answers: answerFields, ...extraRecord,
   });
   await logEvent(guild, config, {
     title: baseMsg(config, 'logOpenedTitle', { ...V, number: pad(number) }), color: config.colors.success,

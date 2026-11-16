@@ -549,6 +549,7 @@ function buttonsPane() {
         h('div', { class: 'grid2' },
           field('Bu kategoriye özel roller', rolesBox(b.roleIds), 'Bu roller sadece bu kategorideki talepleri görür ve yetkili sayılır; boşsa sadece genel destek rolleri görür. Kategoriye özel ekip kurmak için kullan.'),
           field('Aynı anda en fazla açık talep (bu kategori)', num(b, 'maxOpen', 0, 10), '0 = sadece genel sınır (Ayarlar). Örn. 1 yaparsan kişi bu kategoriden aynı anda tek talep açabilir.')),
+        check(b, 'hidden', 'Gizli kategori (panelde buton/listede görünmez; sadece çekiliş ödülü gibi bot tarafından açılır)'),
         h('label', { class: 'chk' }, faqChk, 'Talep açılmadan önce SSS / bilgi yazısı göster (kullanıcı "Yine de talep aç"a basarak devam eder)'), faqBox,
         h('label', { class: 'chk' }, formChk, 'Ticket açılmadan önce form sor'), formBox);
     }));
@@ -556,7 +557,7 @@ function buttonsPane() {
   draw();
   return h('div', { class: 'pane', id: 'pane-buttons' }, h('div', { class: 'card' },
     h('div', { class: 'bhead' }, h('div', {}, h('h2', {}, 'Ticket kategorileri'), h('p', { class: 'hint' }, 'Her kategori bir buton ve/veya açılır liste seçeneğidir. En fazla 25 (butonla birlikte liste kullanıyorsan 20).')),
-      h('button', { class: 'btn sm', onclick: () => { if (cfg.buttons.length >= 25) return toast('En fazla 25 kategori.', 'err'); cfg.buttons.push({ id: '', label: 'Yeni kategori', description: '', emoji: '', color: 'primary', categoryId: '', roleIds: [], maxOpen: 0, faq: { enabled: false, title: '', text: '' }, cooldownSeconds: 0, formEnabled: false, formFields: [] }); dirty(); draw(); refreshPreview(); } }, '+ Kategori ekle')),
+      h('button', { class: 'btn sm', onclick: () => { if (cfg.buttons.length >= 25) return toast('En fazla 25 kategori.', 'err'); cfg.buttons.push({ id: '', label: 'Yeni kategori', description: '', emoji: '', color: 'primary', categoryId: '', roleIds: [], maxOpen: 0, hidden: false, faq: { enabled: false, title: '', text: '' }, cooldownSeconds: 0, formEnabled: false, formFields: [] }); dirty(); draw(); refreshPreview(); } }, '+ Kategori ekle')),
     list));
 }
 
@@ -762,6 +763,61 @@ function ticketButtonsPane() {
 }
 let ticketPreviewEl2;
 
+
+/* ---------- çekilişler ---------- */
+function giveawaysPane() {
+  const g = cfg.giveaways;
+  const catSel = h('select', {}, cfg.buttons.map(b => h('option', { value: b.id }, `${b.emoji || ''} ${b.label}`.trim())));
+  catSel.value = g.categoryId; catSel.addEventListener('change', () => { g.categoryId = catSel.value; dirty(); });
+  const f = { channelId: g.channelId || '', duration: '1h', winners: 1, prize: '' };
+  const listEl = h('div', {});
+  const stLabel = { running: '🟢 Çalışıyor', ended: '🏁 Bitti', cancelled: '🚫 İptal' };
+  async function load() {
+    let items = [];
+    try { items = (await api('admin/giveaways')).items; } catch (e) { listEl.replaceChildren(h('p', { class: 'hint' }, e.message)); return; }
+    const call = (path, body, ask) => async btn => { if (ask && !confirm(ask)) return; await act(btn, async () => { const r = await api(path, body); await load(); return r; }); };
+    listEl.replaceChildren(items.length ? h('div', { class: 'tablewrap' }, h('table', {}, h('thead', {}, h('tr', {}, ['Ödül', 'Durum', 'Katılımcı', 'Kazananlar', 'Bitiş', ''].map(x => h('th', {}, x)))),
+      h('tbody', {}, items.map(it => h('tr', {},
+        h('td', {}, h('b', {}, it.prize), h('div', { class: 'muted sm' }, `ID ${it.id}`)),
+        h('td', {}, stLabel[it.status] || it.status),
+        h('td', {}, String(it.entries)),
+        h('td', {}, it.winners.length ? it.winners.map(w => `${w.tag}${w.claimed ? ' ✅' : ''}`).join(', ') : '—'),
+        h('td', {}, new Date(it.status === 'running' ? it.endsAt : it.endedAt || it.endsAt).toLocaleString('tr-TR')),
+        h('td', {}, h('div', { class: 'acts' },
+          it.status === 'running' && h('button', { class: 'btn sm', onclick: e => call('admin/giveaways/end', { id: it.id })(e.target) }, 'Şimdi bitir'),
+          it.status === 'running' && h('button', { class: 'btn ghost sm', onclick: e => call('admin/giveaways/cancel', { id: it.id }, 'Çekiliş iptal edilsin mi?')(e.target) }, 'İptal'),
+          it.status === 'ended' && h('button', { class: 'btn sm', onclick: e => call('admin/giveaways/reroll', { id: it.id })(e.target) }, 'Tekrar çek'),
+          it.status !== 'running' && h('button', { class: 'btn danger sm', onclick: e => call('admin/giveaways/delete', { id: it.id }, 'Kayıt silinsin mi? (Discord mesajı silinmez)')(e.target) }, 'Sil'))))))))
+      : h('p', { class: 'hint' }, 'Henüz çekiliş yok.'));
+  }
+  load();
+  const dur = h('input', { type: 'text', placeholder: '30m, 2h, 1d, 1h30m' }); dur.value = f.duration; dur.addEventListener('input', () => { f.duration = dur.value; });
+  const win = h('input', { type: 'number', min: 1, max: 20 }); win.value = f.winners; win.addEventListener('input', () => { f.winners = Number(win.value); });
+  const prize = h('input', { type: 'text', maxLength: 200, placeholder: 'Örn: 1M OwO Cash' }); prize.addEventListener('input', () => { f.prize = prize.value; });
+  const chan = picker(f, 'channelId', chanItems(), '— Varsayılan kanal —');
+  chan.addEventListener('change', () => { f.channelId = chan.value; });
+  return h('div', { class: 'pane', id: 'pane-giveaways' },
+    h('div', { class: 'card' }, h('h2', {}, 'Çekiliş sistemi'),
+      h('p', { class: 'hint', style: 'margin-bottom:10px' }, 'Çekiliş bitince bot sonuç mesajı atar: kazananlar "Ödülünü Al" butonuna basınca aşağıda seçtiğin çekiliş kategorisinde bir destek talebi açılır ve kazandıkları ödül orada yazar. "Tekrar Çek" butonu yetkililer içindir. Panel görünümünde gizli kalan bu kategori sitede "çekiliş" etiketiyle görünür.'),
+      check(g, 'enabled', 'Çekiliş sistemi açık (kaydedince geçerli olur)'),
+      h('div', { class: 'grid2' },
+        field('Ödül talepleri hangi kategoride açılsın?', catSel, 'Kategoriler sekmesinden bu kategoriye özel roller / Discord kategorisi / form atayabilirsin. Gizli kategori panelde (buton/liste) görünmez.'),
+        field('Varsayılan çekiliş kanalı', picker(g, 'channelId', chanItems()), 'Panelden çekiliş başlatırken kanal seçmezsen burası kullanılır.'),
+        field('Ödül alma süresi (saat)', num(g, 'claimHours', 0, 720), '0 = süresiz. Kazanan bu süreden sonra "Ödülünü Al"a basarsa reddedilir.')),
+      check(g, 'showOnSite', 'Sitede çalışan ve biten çekilişleri göster'),
+      check(g, 'showWinnersOnSite', 'Sitede kazanan kullanıcı adlarını da göster')),
+    h('div', { class: 'card' }, h('h2', {}, 'Çekiliş başlat'),
+      !meta.connected && h('div', { class: 'banner bad' }, 'Bot bağlı değil.'),
+      h('div', { class: 'grid2' }, field('Kanal', chan), field('Süre', dur, 'Örn: 30m, 2h, 1d, 1h30m (en az 10 sn, en fazla 30 gün)'), field('Kazanan sayısı', win), field('Ödül', prize)),
+      h('button', { class: 'btn accent', onclick: e => act(e.target, async () => {
+        const r = await api('admin/giveaways/start', { channelId: f.channelId, duration: f.duration, winners: f.winners, prize: f.prize });
+        await load(); return r;
+      }) }, '🎉 Çekilişi başlat'),
+      h('p', { class: 'hint', style: 'margin-top:10px' }, 'Discord\'da yazıyla: .gstart 1h 3 1M OwO Cash · .gend · .greroll · .gcancel · .glist (Komutlar sekmesinden eklemen gerekebilir). Slash: /cekilis baslat.')),
+    h('div', { class: 'card' }, h('div', { class: 'bhead' }, h('h2', {}, 'Çekilişler'), h('button', { class: 'btn ghost sm', onclick: load }, 'Yenile')), listEl),
+    h('p', { class: 'hint' }, 'Buton ve mesaj yazıları "Bot mesajları" sekmesindeki "Çekiliş" grubunda; sitedeki başlıklar "Site yazıları"nda.'));
+}
+
 /* ---------- ana iskelet ---------- */
 function showApp() {
   const tabs = [['overview', '📊', 'Genel bakış', overviewPane], ['general', '⚙️', 'Ayarlar', generalPane], ['look', '🎨', 'Panel görünümü', appearancePane], ['buttons', '🎫', 'Kategoriler & formlar', buttonsPane],
@@ -769,6 +825,7 @@ function showApp() {
     ['ticketbtn', '🔘', 'Talep butonları', ticketButtonsPane],
     ['canned', '📋', 'Hazır cevaplar', cannedPane],
     ['commands', '⌨️', 'Komutlar', commandsPane],
+    ['giveaways', '🎁', 'Çekilişler', giveawaysPane],
     ['messages', '💬', 'Bot mesajları', () => textsPane('messages', 'Bot mesajları', 'Botun ticket açarken, kapatırken, silerken, DM\'de ve logda yazdığı bütün yazılar. {süslü} kısımlar otomatik doldurulur; her yazıda yukarıdaki tablodaki değişkenleri kullanabilirsin. Kutuyu boş bırakırsan varsayılan yazı kullanılır.', schema.messages, cfg.messages)],
     ['site', '🌐', 'Site yazıları', () => textsPane('site', 'Site yazıları', 'Ana sayfadaki bütün başlıklar, açıklamalar ve düğme yazıları. {server} {members} {open} {closed} {total} {brand} {bot} {ping} {date} {time} {day} {year} {greeting} değişkenlerini kullanabilirsin.', schema.site, cfg.site)]];
   const panes = tabs.map(t => t[3]());

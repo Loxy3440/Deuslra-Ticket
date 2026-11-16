@@ -240,8 +240,15 @@ function normalizeConfig(input) {
     cooldownSeconds: clampInt(a[key]?.cooldownSeconds, 0, 86400, 0),
   });
 
+  const g = c.giveaways && typeof c.giveaways === 'object' ? c.giveaways : {};
   const used = new Set();
-  const rawButtons = Array.isArray(c.buttons) ? c.buttons : [];
+  const rawButtons = Array.isArray(c.buttons) ? [...c.buttons] : [];
+  // Çekiliş sistemi açıksa ödül talepleri için gizli bir "Çekiliş Ödülü" ticket kategorisi hazır bulunur
+  const gwEnabled = bool(g.enabled, true);
+  let gwCategoryId = slug(g.categoryId) || 'cekilis-odul';
+  if (gwEnabled && rawButtons.length && !rawButtons.some(b => slug(b?.id) === gwCategoryId)) {
+    rawButtons.push({ id: gwCategoryId, label: 'Çekiliş Ödülü', emoji: '🎁', color: 'success', description: 'Çekiliş ödülünü teslim alma talebi', hidden: true });
+  }
   if (!rawButtons.length) throw new ConfigError('En az bir ticket butonu eklemelisin.');
   if (rawButtons.length > 25) throw new ConfigError('Bir panelde en fazla 25 buton olabilir.');
   const buttons = rawButtons.map((b, i) => {
@@ -268,6 +275,7 @@ function normalizeConfig(input) {
       formFields,
       roleIds: [...new Set((Array.isArray(b?.roleIds) ? b.roleIds : []).map(cleanId).filter(Boolean))].slice(0, 10),
       maxOpen: clampInt(b?.maxOpen, 0, 10, 0),
+      hidden: bool(b?.hidden, false),
       faq: { enabled: bool(b?.faq?.enabled, false) && Boolean(str(b?.faq?.text, 1500)), title: str(b?.faq?.title, 100), text: str(b?.faq?.text, 1500) },
     };
   });
@@ -278,6 +286,14 @@ function normalizeConfig(input) {
 
   return {
     version: 1,
+    giveaways: {
+      enabled: gwEnabled,
+      channelId: cleanId(g.channelId),
+      categoryId: gwCategoryId,
+      claimHours: clampInt(g.claimHours, 0, 720, 72),
+      showOnSite: bool(g.showOnSite, true),
+      showWinnersOnSite: bool(g.showWinnersOnSite, true),
+    },
     brandName: str(c.brandName, 40) || d.brandName,
     guildId: cleanId(c.guildId),
     panel: {

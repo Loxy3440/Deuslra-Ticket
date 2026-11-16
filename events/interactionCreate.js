@@ -5,11 +5,16 @@ const { buildPanelPayload } = require('../utils/panel');
 const t = require('../utils/tickets');
 const { msg } = require('../utils/messages');
 const cb = require('../utils/customButtons');
+const db = require('../utils/db');
+const gw = require('../utils/giveaways');
 
 async function handleButton(interaction, config) {
   const id = interaction.customId;
   if (id.startsWith('transcript-dl:')) return t.handleTranscriptDownload(interaction, config, id.slice('transcript-dl:'.length));
   if (id.startsWith('ticket-faq-go:')) return t.handleOpenButton(interaction, config, id.slice('ticket-faq-go:'.length), { skipFaq: true });
+  if (id === 'gw-join') return gw.handleJoin(interaction, config);
+  if (id.startsWith('gw-claim:')) return gw.handleClaim(interaction, config, id.slice(9));
+  if (id.startsWith('gw-reroll:')) return gw.handleReroll(interaction, config, id.slice(10));
   if (id.startsWith('ticket-rate:')) { const [, ch, n] = id.split(':'); return t.handleRating(interaction, config, ch, n); }
   if (id.startsWith('ticket-custom:')) return cb.handleCustomButton(interaction, config, id.slice('ticket-custom:'.length));
   if (id.startsWith('ticket-custom-confirm:')) return cb.handleCustomConfirm(interaction, config, id.slice('ticket-custom-confirm:'.length));
@@ -40,6 +45,8 @@ module.exports = {
   name: Events.InteractionCreate,
   async execute(interaction, client) {
     try {
+      // Birden fazla bot kopyası aynı etkileşimi alırsa sadece ilk gelen işler (MongoDB ile)
+      if (!(await db.claimOnce(`i:${interaction.id}`))) return;
       const config = readConfig();
       if (interaction.isChatInputCommand()) {
         const command = client.commands.get(interaction.commandName);
@@ -60,6 +67,8 @@ module.exports = {
         }
       }
     } catch (err) {
+      // 40060 = bu etkileşime başka bir bot kopyası zaten cevap verdi (aynı token iki yerde çalışıyor: bilgisayarın + Render)
+      if (err?.code === 40060) { console.warn('[INTERACTION] Bu etkileşime başka bir kopya zaten cevap verdi. Aynı bot token\'ı iki yerde çalışıyor olabilir; birini kapat.'); return; }
       console.error('[INTERACTION]', err);
       if (interaction.isRepliable()) {
         await replyPrivate(interaction, msg(readConfig(), 'interactionError')).catch(() => null);

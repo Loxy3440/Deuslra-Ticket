@@ -88,6 +88,36 @@ const ACTIONS = {
     desc: 'Bu talepteki iç notları kanalda göstermek yerine sana DM olarak gönderir.',
     links: '',
   },
+  noreminder: {
+    label: 'Hatırlatıcıyı kapat / aç', usage: '', needsTicket: true, perm: 'staff',
+    desc: 'Bu talep için "hareketsiz talep" uyarısını ve otomatik kapatmayı kapatır; aynı komutu tekrar yazarsan tekrar açılır. Uzun sürecek (örn. beklenen) talepler için kullan.',
+    links: 'Genel ayar: Ayarlar > "Hareketsiz talepleri otomatik uyar ve kapat". Butona da bağlanabilir.',
+  },
+  gstart: {
+    label: 'Çekiliş başlat', usage: '<süre> <kazanan> <ödül>', needsTicket: false, perm: 'staff',
+    desc: 'Yazdığın kanalda çekiliş başlatır. Örn: ".gstart 1h 3 1M OwO Cash" = 1 saat sürer, 3 kazanan, ödül "1M OwO Cash". Süre: 30m, 2h, 1d, 1h30m. Kazananlar sonuç mesajındaki "Ödülünü Al" butonuyla ödül talebi (ticket) açar.',
+    links: 'Panelde Çekilişler sekmesinden de başlatılır; slash karşılığı /cekilis baslat.',
+  },
+  gend: {
+    label: 'Çekilişi şimdi bitir', usage: '[çekiliş ID]', needsTicket: false, perm: 'staff',
+    desc: 'Çalışan çekilişi hemen bitirir ve kazananları seçer. ID yazmazsan bu kanaldaki en son çekiliş bitirilir.',
+    links: '',
+  },
+  greroll: {
+    label: 'Çekilişi tekrar çek', usage: '[çekiliş ID] [adet]', needsTicket: false, perm: 'staff',
+    desc: 'Bitmiş çekilişte daha önce kazanmamış katılımcılardan yeni kazanan seçer (varsayılan 1). Sonuç mesajındaki "Tekrar Çek" butonuyla aynı iş.',
+    links: '',
+  },
+  gcancel: {
+    label: 'Çekilişi iptal et', usage: '[çekiliş ID]', needsTicket: false, perm: 'staff',
+    desc: 'Çalışan çekilişi kazanan seçmeden iptal eder.',
+    links: '',
+  },
+  glist: {
+    label: 'Çalışan çekilişleri listele', usage: '', needsTicket: false, perm: 'staff',
+    desc: 'Şu an çalışan çekilişleri ID, ödül ve bitiş süresiyle listeler.',
+    links: '',
+  },
   help: {
     label: 'Komut listesi', usage: '', needsTicket: false, perm: 'everyone',
     desc: 'Yazan kişinin kullanabildiği komutları ve açıklamalarını listeler.',
@@ -131,6 +161,12 @@ const DEFAULT_COMMANDS = [
   mk('cevap', 'canned', { description: 'Hazır cevap gönderir' }),
   mk('not', 'note', { description: 'Talebe iç not ekler' }),
   mk('notlar', 'notes', { description: 'İç notları DM atar' }),
+  mk('hatirlatici', 'noreminder', { description: 'Bu talebin hatırlatıcısını kapatır/açar' }),
+  mk('gstart', 'gstart', { description: 'Çekiliş başlatır' }),
+  mk('gend', 'gend', { description: 'Çekilişi bitirir' }),
+  mk('greroll', 'greroll', { description: 'Çekilişi tekrar çeker' }),
+  mk('gcancel', 'gcancel', { description: 'Çekilişi iptal eder' }),
+  mk('glist', 'glist', { description: 'Çalışan çekilişleri listeler' }),
   mk('help', 'help', { description: 'Kullanabildiğin komutları listeler' }),
 ];
 

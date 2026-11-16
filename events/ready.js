@@ -13,12 +13,13 @@ module.exports = {
       const body = [...client.commands.values()].map(c => c.data.toJSON());
       await new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN)
         .put(Routes.applicationGuildCommands(client.user.id, guildId), { body });
-      console.info(`[BOT] ${client.user.tag} hazır · ${body.length} komut kaydedildi`);
+      console.info(`[BOT] ${client.user.tag} hazır · ${body.length} komut kaydedildi · kopya: ${process.env.RENDER_INSTANCE_ID || require('os').hostname()} (pid ${process.pid})`);
     } catch (err) {
       console.error('[BOT] Komutlar kaydedilemedi:', err.message);
     }
     setClient(client);
     startInactivityWatcher(client);
-    client.user.setPresence({ status: 'online', activities: [{ name: '𝑫𝒆𝒖𝒔𝒍𝒓𝒂', type: ActivityType.Watching }] });
+    require('../utils/giveaways').startGiveawayWatcher(client);
+    client.user.setPresence({ status: 'online', activities: [{ name: 'destek talepleri', type: ActivityType.Watching }] });
   },
 };

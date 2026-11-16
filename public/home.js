@@ -17,7 +17,7 @@ function drawMock(s) {
   const ui = $('mock-ui'); ui.replaceChildren();
   if (p.style !== 'dropdown') {
     const row = el('div', 'mock-btns');
-    for (const c of s.categories) row.append(el('span', `mb ${c.color || 'primary'}`, `${c.emoji ? c.emoji + ' ' : ''}${c.label}`));
+    for (const c of s.categories.filter(c => !c.hidden)) row.append(el('span', `mb ${c.color || 'primary'}`, `${c.emoji ? c.emoji + ' ' : ''}${c.label}`));
     ui.append(row);
   }
   if (p.style !== 'buttons') {
@@ -30,9 +30,10 @@ function drawMock(s) {
 function drawCats(list) {
   const box = $('cats'); box.replaceChildren();
   if (!list.length) { box.append(el('p', 'muted', 'Kategoriler yüklenemedi.')); return; }
-  for (const c of list) {
-    const card = el('article', 'cat');
-    card.append(el('span', 'cat-ico', c.emoji || '🎫'), el('h3', null, c.label), el('p', null, c.description || 'Bu kategoride talep açarak ekibe ulaşabilirsin.'));
+  for (const c of list.filter(c => !c.hidden || c.giveaway)) { // gizli kategoriler gösterilmez; çekiliş ödül kategorisi rozetle gösterilir
+    const card = el('article', c.giveaway ? 'cat gw' : 'cat');
+    card.append(el('span', 'cat-ico', c.emoji || '🎫'), el('h3', null, c.label), el('p', null, (c.giveaway && gwText.gwCatDesc) || c.description || 'Bu kategoride talep açarak ekibe ulaşabilirsin.'));
+    if (c.giveaway) card.append(el('span', 'badge', `🎁 ${gwText.gwCatBadge || 'Çekiliş ödül kategorisi'}`));
     box.append(card);
   }
 }
@@ -63,6 +64,27 @@ function applyTexts(site, hasLink, stats) {
   });
 }
 
+let gwText = {};
+function drawGiveaways(s) {
+  const sec = $('cekilisler'), g = s.giveaways;
+  sec.hidden = !g; $('nav-gw').hidden = !g;
+  if (!g) return;
+  const T = s.site || {};
+  $('gw-lead').textContent = siteFill(String(T.gwLead || '').replace(/\{hours\}/gi, g.claimHours || '∞'), s);
+  const card = (it, ended) => {
+    const c = el('article', 'gw-card');
+    c.append(el('b', 'gw-prize', it.prize));
+    const meta = el('p', 'muted');
+    meta.textContent = ended
+      ? `${it.winners.length ? `${T.gwWinnersLabel || 'Kazanan'}: ${it.winners.map(w => w.tag + (w.claimed ? ' ✅' : '')).join(', ')}` : ''}`
+      : `${T.gwEndsLabel || 'Bitiş'}: ${new Date(it.endsAt).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })}`;
+    c.append(meta, el('span', 'badge', `${nf(it.entries)} ${T.gwEntriesLabel || 'katılımcı'} · ${it.winnersCount} ${(T.gwWinnersLabel || 'Kazanan').toLowerCase()}`));
+    return c;
+  };
+  const fill = (box, items, ended, none) => { box.replaceChildren(...(items.length ? items.map(i => card(i, ended)) : [el('p', 'muted', none)])); };
+  fill($('gw-run'), g.running, false, T.gwNone || 'Şu an çalışan çekiliş yok.');
+  fill($('gw-end'), g.ended, true, T.gwNoneEnded || 'Henüz biten çekiliş yok.');
+}
 let catKey = '';
 async function tick() {
   try {
@@ -84,7 +106,9 @@ async function tick() {
     $('s-up').textContent = fmtUp(s.uptime);
     if (s.panelUrl) { $('cta').href = s.panelUrl; $('cta').target = '_blank'; $('cta').rel = 'noopener'; $('cta').textContent = (s.site && s.site.ctaText) || 'Discord\'da talep aç'; }
     applyTexts(s.site, Boolean(s.panelUrl), s);
-    const key = JSON.stringify([s.panel, s.categories]);
+    gwText = s.site || {};
+    drawGiveaways(s);
+    const key = JSON.stringify([s.panel, s.categories, s.site?.gwCatBadge, s.site?.gwCatDesc]);
     if (key !== catKey) { catKey = key; drawMock(s); drawCats(s.categories); }
   } catch {
     $('dot').classList.add('off'); $('status').textContent = 'Sunucuya ulaşılamıyor';

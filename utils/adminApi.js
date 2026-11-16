@@ -59,7 +59,12 @@ function publicStats(client) {
       description: cfg.panel.description, color: cfg.panel.color, footer: cfg.panel.footer,
     },
     site: cfg.site,
-    categories: cfg.buttons.map(b => ({ id: b.id, label: b.label, emoji: b.emoji, description: b.description, color: b.color })),
+    categories: cfg.buttons.map(b => ({ id: b.id, label: b.label, emoji: b.emoji, description: b.description, color: b.color, hidden: b.hidden, giveaway: cfg.giveaways.enabled && b.id === cfg.giveaways.categoryId })),
+    giveaways: cfg.giveaways.enabled && cfg.giveaways.showOnSite ? {
+      running: gw.running().slice(0, 10).map(gw.view),
+      ended: gw.list().filter(g => g.status === 'ended').slice(0, 6).map(g => { const v = gw.view(g); if (!cfg.giveaways.showWinnersOnSite) v.winners = []; return v; }),
+      claimHours: cfg.giveaways.claimHours, showWinners: cfg.giveaways.showWinnersOnSite,
+    } : null,
   };
 }
 
@@ -116,6 +121,7 @@ function computeStats(all) {
   };
 }
 
+const gw = require('./giveaways');
 const handlers = {
   'GET config': async () => readConfig(),
 
@@ -198,6 +204,23 @@ const handlers = {
       return { ok: true, url, message: `Panel #${channel.name} kanalında ${updated ? 'güncellendi' : 'yayınlandı'}.` };
     } catch (err) { throw new ApiError(400, err.message); }
   },
+
+  // ---- Çekilişler ----
+  'GET giveaways': async () => ({ items: gw.list().slice(0, 100).map(gw.view), enabled: readConfig().giveaways.enabled }),
+  'POST giveaways/start': async (client, body) => {
+    const guild = needGuild(client);
+    const config = readConfig();
+    const channel = guild.channels.cache.get(String(body.channelId || '') || config.giveaways.channelId);
+    if (!channel) throw new ApiError(400, 'Çekilişin yapılacağı kanalı seç (ya da Ayarlar\'da varsayılan kanalı belirle).');
+    const ms = gw.parseDuration(body.duration);
+    const res = await gw.start({ client, config, channel, hostId: client.user.id, ms, winners: Math.min(Math.max(parseInt(body.winners, 10) || 1, 1), 20), prize: String(body.prize || '').trim().slice(0, 200), roleId: String(body.roleId || '') });
+    if (res.error) throw new ApiError(400, res.error);
+    return { ok: true, message: 'Çekiliş başlatıldı.', url: res.url };
+  },
+  'POST giveaways/end': async (client, body) => { const r = await gw.finish({ client, config: readConfig(), id: String(body.id || '') }); if (r.error) throw new ApiError(400, r.error); return { ok: true, message: 'Çekiliş bitirildi.' }; },
+  'POST giveaways/reroll': async (client, body) => { const r = await gw.reroll({ client, config: readConfig(), id: String(body.id || ''), count: body.count }); if (r.error) throw new ApiError(400, r.error); return { ok: true, message: 'Tekrar çekildi.' }; },
+  'POST giveaways/cancel': async (client, body) => { const r = await gw.cancel({ client, config: readConfig(), id: String(body.id || '') }); if (r.error) throw new ApiError(400, r.error); return { ok: true, message: 'Çekiliş iptal edildi.' }; },
+  'POST giveaways/delete': async (client, body) => { const g = gw.get(String(body.id || '')); if (g?.status === 'running') throw new ApiError(400, 'Çalışan çekiliş silinemez; önce bitir veya iptal et.'); gw.remove(String(body.id || '')); return { ok: true, message: 'Kayıt silindi.' }; },
 
   'POST tickets/close': async (client, body) => {
     const channel = findTicketChannel(client, body.channelId);

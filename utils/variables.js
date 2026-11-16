@@ -105,6 +105,9 @@ function ticketVars(config, { channel, guild, user = null, member = null, actor 
     priority: prio,
     supportroles: roleMentions || NONE,
     reason: '',
+    prize: rec.giveaway?.prize || NONE,
+    giveawayid: rec.giveaway?.id || NONE,
+    giveawaylink: rec.giveaway?.url || NONE,
     ...extra,
   };
   return vars;
@@ -140,6 +143,7 @@ const VAR_DOCS = [
   ['Talep yazılarında', 'opened / openedat', 'Talebin açılış zamanı (göreli / tam)', '2 saat önce'],
   ['Talep yazılarında', 'status', 'Durum (açık / kapalı)', 'açık'], ['Talep yazılarında', 'priority', 'Öncelik', '🔴 acil'],
   ['Talep yazılarında', 'supportroles', 'Destek rollerinin etiketleri', '@Destek Ekibi'],
+  ['Talep yazılarında', 'prize', 'Çekiliş ödülü (çekiliş ödül talebinde)', '1M OwO Cash'], ['Talep yazılarında', 'giveawayid / giveawaylink', 'Çekilişin ID\'si / sonuç mesajının bağlantısı', '1571…'],
   ['Talep yazılarında', 'reason', 'Kapatma sebebi (sadece kapatma yazılarında)', 'Sorun çözüldü'],
 ];
 

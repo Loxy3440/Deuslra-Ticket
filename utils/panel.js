@@ -20,11 +20,14 @@ function withEmoji(button, emoji) {
   return button;
 }
 
+const visibleButtons = config => config.buttons.filter(b => !b.hidden); // gizli kategoriler (örn. çekiliş ödülü) panelde görünmez
+
 function buildButtonRows(config) {
   const rows = [];
-  for (let i = 0; i < config.buttons.length; i += 5) {
+  const list = visibleButtons(config);
+  for (let i = 0; i < list.length; i += 5) {
     const row = new ActionRowBuilder();
-    for (const item of config.buttons.slice(i, i + 5)) {
+    for (const item of list.slice(i, i + 5)) {
       row.addComponents(withEmoji(
         new ButtonBuilder().setCustomId(`ticket-open:${item.id}`).setLabel(item.label.slice(0, 80)).setStyle(STYLES[item.color] ?? ButtonStyle.Primary),
         item.emoji,
@@ -41,7 +44,7 @@ function buildSelectRow(config) {
     .setCustomId('ticket-select')
     .setPlaceholder((renderAll(config, config.panel.placeholder) || 'Bir kategori seç…').slice(0, 150))
     .setMinValues(1).setMaxValues(1);
-  for (const item of config.buttons.slice(0, 25)) {
+  for (const item of visibleButtons(config).slice(0, 25)) {
     const option = new StringSelectMenuOptionBuilder().setLabel(item.label.slice(0, 100)).setValue(item.id);
     if (item.description) option.setDescription(item.description.slice(0, 100));
     if (item.emoji) { try { option.setEmoji(item.emoji.trim()); } catch { /* geçersiz emoji yok sayılır */ } }
@@ -133,7 +136,7 @@ async function publishPanel(guild, config, fallbackChannelId = '') {
   const target = guild.channels.cache.get(targetId) ?? await guild.channels.fetch(targetId).catch(() => null);
   if (!target) throw new Error('Seçili panel kanalı bulunamadı (silinmiş olabilir veya bot göremiyor). Ayarlar sekmesinden kanalı yeniden seç.');
   if (!target.isTextBased() || !target.messages) throw new Error('Seçili kanal bir yazı kanalı değil. Panel için normal bir yazı kanalı seç.');
-  if (!config.buttons.length) throw new Error('En az bir ticket kategorisi olmalı.');
+  if (!visibleButtons(config).length) throw new Error('Panelde görünecek en az bir ticket kategorisi olmalı (gizli olmayan).');
 
   const me = guild.members.me ?? await guild.members.fetchMe().catch(() => null);
   const missing = missingPermissions(me ? target.permissionsFor(me) : null, PANEL_CHANNEL_REQUIRED);

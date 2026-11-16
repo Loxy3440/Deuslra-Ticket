@@ -9,6 +9,7 @@ const FILES = {
   config: path.join(ROOT, 'config', 'ticket-config.json'),
   'panel-message': path.join(ROOT, 'data', 'panel-message.json'),
   tickets: path.join(ROOT, 'data', 'tickets.json'),
+  giveaways: path.join(ROOT, 'data', 'giveaways.json'),
 };
 
 let mode = 'file';
@@ -16,6 +17,7 @@ let lastError = '';
 let client = null;
 let coll = null;
 let blobs = null;
+let locks = null;
 const cache = new Map();
 const chains = new Map(); // anahtar başına yazma sırası (eski veri yeniyi ezmesin)
 
@@ -29,6 +31,8 @@ async function init() {
   const database = client.db(process.env.MONGODB_DB || 'deuslra-destek');
   coll = database.collection('kv');
   blobs = database.collection('blobs');
+  locks = database.collection('locks');
+  await locks.createIndex({ at: 1 }, { expireAfterSeconds: 300 }).catch(() => null); // kilitler 5 dk sonra kendiliğinden silinir
   for (const doc of await coll.find({}).toArray()) cache.set(doc._id, doc.data);
   // Yazma testi: kullanıcıya yazma izni yoksa ayarlar her deploy'da kaybolur; bunu başta yakalayalım.
   try { await coll.replaceOne({ _id: '_health' }, { _id: '_health', at: new Date() }, { upsert: true }); }
@@ -75,6 +79,14 @@ async function getBlob(key) {
   return readJson(path.join(BLOB_DIR, `${safeKey(key)}.json`), null);
 }
 
+// Aynı olayı (etkileşim / mesaj) birden fazla bot kopyası görürse sadece biri işlesin diye:
+// ilk gelen true alır, diğerleri false alır. Tek kopya / dosya modunda hep true.
+async function claimOnce(key) {
+  if (mode !== 'mongo' || !locks) return true;
+  try { await locks.insertOne({ _id: String(key), at: new Date() }); return true; }
+  catch (err) { return err?.code === 11000 ? false : true; } // başka bir hatada işlemeyi engelleme
+}
+
 async function close() {
   await Promise.all([...chains.values()]);
   if (client) await client.close().catch(() => null);
@@ -82,4 +94,4 @@ async function close() {
 
 const getMode = () => mode;
 const getLastError = () => lastError;
-module.exports = { init, get, set, putBlob, getBlob, close, getMode, getLastError };
+module.exports = { init, get, set, putBlob, getBlob, claimOnce, close, getMode, getLastError };
