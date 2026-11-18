@@ -280,7 +280,7 @@ const joinRow = (config, disabled = false, g = null) => {
 };
 const resultRow = (config, id) => [new ActionRowBuilder().addComponents(
   new ButtonBuilder().setCustomId(`gw-claim:${id}`).setLabel(baseMsg(config, 'gwClaimBtn').slice(0, 80)).setEmoji('<:giveaway:1568552724457586739> ').setStyle(ButtonStyle.Success),
-  new ButtonBuilder().setCustomId(`gw-reroll:${id}`).setLabel(baseMsg(config, 'gwRerollBtn').slice(0, 80)).setEmoji('').setStyle(ButtonStyle.Secondary),
+  new ButtonBuilder().setCustomId(`gw-reroll:${id}`).setLabel(baseMsg(config, 'gwRerollBtn').slice(0, 80)).setEmoji('<:refreshh:1572617938014576760>').setStyle(ButtonStyle.Secondary),
 )];
 
 async function fetchChannel(client, id) { return client.channels.cache.get(id) || (await client.channels.fetch(id).catch(() => null)); }
