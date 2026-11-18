@@ -273,14 +273,14 @@ function runningEmbed(config, g) {
 }
 const joinRow = (config, disabled = false, g = null) => {
   const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('gw-join').setLabel(baseMsg(config, 'gwJoinBtn').slice(0, 80)).setEmoji('🎉').setStyle(ButtonStyle.Primary).setDisabled(disabled),
+    new ButtonBuilder().setCustomId('gw-join').setLabel(baseMsg(config, 'gwJoinBtn').slice(0, 80)).setEmoji('<:giveaway:1568552724457586739> ').setStyle(ButtonStyle.Primary).setDisabled(disabled),
   );
-  if (g && hasReq(g)) row.addComponents(new ButtonBuilder().setCustomId('gw-status').setLabel(baseMsg(config, 'gwStatusBtn').slice(0, 80)).setEmoji('📋').setStyle(ButtonStyle.Secondary).setDisabled(disabled));
+  if (g && hasReq(g)) row.addComponents(new ButtonBuilder().setCustomId('gw-status').setLabel(baseMsg(config, 'gwStatusBtn').slice(0, 80)).setEmoji('<:rules:1572618238632796170> ').setStyle(ButtonStyle.Secondary).setDisabled(disabled));
   return [row];
 };
 const resultRow = (config, id) => [new ActionRowBuilder().addComponents(
-  new ButtonBuilder().setCustomId(`gw-claim:${id}`).setLabel(baseMsg(config, 'gwClaimBtn').slice(0, 80)).setEmoji('🎁').setStyle(ButtonStyle.Success),
-  new ButtonBuilder().setCustomId(`gw-reroll:${id}`).setLabel(baseMsg(config, 'gwRerollBtn').slice(0, 80)).setEmoji('🔔').setStyle(ButtonStyle.Secondary),
+  new ButtonBuilder().setCustomId(`gw-claim:${id}`).setLabel(baseMsg(config, 'gwClaimBtn').slice(0, 80)).setEmoji('<:giveaway:1568552724457586739> ').setStyle(ButtonStyle.Success),
+  new ButtonBuilder().setCustomId(`gw-reroll:${id}`).setLabel(baseMsg(config, 'gwRerollBtn').slice(0, 80)).setEmoji('<:reroll:1572618238632796170> ').setStyle(ButtonStyle.Secondary),
 )];
 
 async function fetchChannel(client, id) { return client.channels.cache.get(id) || (await client.channels.fetch(id).catch(() => null)); }
