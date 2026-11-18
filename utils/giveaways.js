@@ -275,7 +275,7 @@ const joinRow = (config, disabled = false, g = null) => {
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('gw-join').setLabel(baseMsg(config, 'gwJoinBtn').slice(0, 80)).setEmoji('<:giveaway:1568552724457586739> ').setStyle(ButtonStyle.Primary).setDisabled(disabled),
   );
-  if (g && hasReq(g)) row.addComponents(new ButtonBuilder().setCustomId('gw-status').setLabel(baseMsg(config, 'gwStatusBtn').slice(0, 80)).setEmoji('<:rules:1572618238632796170> ').setStyle(ButtonStyle.Secondary).setDisabled(disabled));
+  if (g && hasReq(g)) row.addComponents(new ButtonBuilder().setCustomId('gw-status').setLabel(baseMsg(config, 'gwStatusBtn').slice(0, 80)).setEmoji('<:ruless:1568552732502269982> ').setStyle(ButtonStyle.Secondary).setDisabled(disabled));
   return [row];
 };
 const resultRow = (config, id) => [new ActionRowBuilder().addComponents(
