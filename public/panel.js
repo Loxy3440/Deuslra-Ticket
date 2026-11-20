@@ -764,119 +764,48 @@ function ticketButtonsPane() {
 let ticketPreviewEl2;
 
 
-/* ---------- çekilişler ---------- */
-// Çekiliş formundaki şart kutuları (ayar kaydı gerektirmez, "kaydedilmemiş değişiklik" uyarısı çıkarmaz)
-function reqRoles(arr) {
-  const box = h('div', { class: 'roles' });
-  const draw = () => box.replaceChildren(...meta.roles.map(r => {
-    const el = h('label', { class: `role ${arr.includes(r.id) ? 'on' : ''}` }, h('i', {}), r.name);
-    el.firstChild.style.background = r.color && r.color !== '#000000' ? r.color : '#99aab5';
-    el.addEventListener('click', e => { e.preventDefault(); const i = arr.indexOf(r.id); if (i >= 0) arr.splice(i, 1); else arr.push(r.id); draw(); });
-    return el;
-  }));
-  draw();
-  return box;
-}
-function reqCheck(obj, key, label) { const el = h('input', { type: 'checkbox' }); el.checked = Boolean(obj[key]); el.addEventListener('change', () => { obj[key] = el.checked; }); return h('label', { class: 'chk' }, el, label); }
-function reqText(obj, key, ph) { const el = h('input', { type: 'text', maxLength: 100, placeholder: ph }); el.value = obj[key] || ''; el.addEventListener('input', () => { obj[key] = el.value; }); return el; }
-function reqNum(obj, key, max) { const el = h('input', { type: 'number', min: 0, max }); el.value = obj[key] || 0; el.addEventListener('input', () => { obj[key] = Number(el.value) || 0; }); return el; }
-function reqSummary(r) {
-  if (!r) return '';
-  const roleName = id => meta.roles.find(x => x.id === id)?.name || id;
-  return [
-    r.roleIds?.length && `rol: ${r.roleIds.map(roleName).join(', ')}`, r.serverTag && 'sunucu etiketi', r.statusText && `durum: ${r.statusText}`,
-    r.voiceMinutes && `ses ${r.voiceMinutes} dk`, r.messages && `${r.messages} mesaj`, r.invites && `${r.invites} davet`,
-  ].filter(Boolean).join(' · ');
-}
-function giveawaysPane() {
-  const g = cfg.giveaways;
-  const catSel = h('select', {}, cfg.buttons.map(b => h('option', { value: b.id }, `${b.emoji || ''} ${b.label}`.trim())));
-  catSel.value = g.categoryId; catSel.addEventListener('change', () => { g.categoryId = catSel.value; dirty(); });
-  const f = { channelId: g.channelId || '', duration: '1h', winners: 1, prize: '' };
-  const req = { roleIds: [], serverTag: false, statusText: '', voiceMinutes: 0, messages: 0, invites: 0 };
-  const listEl = h('div', {});
-  const stLabel = { running: '🟢 Çalışıyor', ended: '🏁 Bitti', cancelled: '🚫 İptal' };
-  async function load() {
-    let items = [];
-    try { items = (await api('admin/giveaways')).items; } catch (e) { listEl.replaceChildren(h('p', { class: 'hint' }, e.message)); return; }
-    const call = (path, body, ask) => async btn => { if (ask && !confirm(ask)) return; await act(btn, async () => { const r = await api(path, body); await load(); return r; }); };
-    listEl.replaceChildren(items.length ? h('div', { class: 'tablewrap' }, h('table', {}, h('thead', {}, h('tr', {}, ['Ödül', 'Durum', 'Katılımcı', 'Kazananlar', 'Bitiş', ''].map(x => h('th', {}, x)))),
-      h('tbody', {}, items.map(it => h('tr', {},
-        h('td', {}, h('b', {}, it.prize), h('div', { class: 'muted sm' }, `ID ${it.id}`), reqSummary(it.requirements) && h('div', { class: 'muted sm' }, `Şartlar: ${reqSummary(it.requirements)}`)),
-        h('td', {}, stLabel[it.status] || it.status),
-        h('td', {}, String(it.entries)),
-        h('td', {}, it.winners.length ? it.winners.map(w => `${w.tag}${w.disq ? ' ❌ (şartı yapmadı)' : w.claimed ? ' ✅' : ''}`).join(', ') : '—'),
-        h('td', {}, new Date(it.status === 'running' ? it.endsAt : it.endedAt || it.endsAt).toLocaleString('tr-TR')),
-        h('td', {}, h('div', { class: 'acts' },
-          it.status === 'running' && h('button', { class: 'btn sm', onclick: e => call('admin/giveaways/end', { id: it.id })(e.target) }, 'Şimdi bitir'),
-          it.status === 'running' && h('button', { class: 'btn ghost sm', onclick: e => call('admin/giveaways/cancel', { id: it.id }, 'Çekiliş iptal edilsin mi?')(e.target) }, 'İptal'),
-          it.status === 'ended' && h('button', { class: 'btn sm', onclick: e => call('admin/giveaways/reroll', { id: it.id })(e.target) }, 'Tekrar çek'),
-          it.status !== 'running' && h('button', { class: 'btn danger sm', onclick: e => call('admin/giveaways/delete', { id: it.id }, 'Kayıt silinsin mi? (Discord mesajı silinmez)')(e.target) }, 'Sil'))))))))
-      : h('p', { class: 'hint' }, 'Henüz çekiliş yok.'));
-  }
-  load();
-  const dur = h('input', { type: 'text', placeholder: '30m, 2h, 1d, 1h30m' }); dur.value = f.duration; dur.addEventListener('input', () => { f.duration = dur.value; });
-  const win = h('input', { type: 'number', min: 1, max: 20 }); win.value = f.winners; win.addEventListener('input', () => { f.winners = Number(win.value); });
-  const prize = h('input', { type: 'text', maxLength: 200, placeholder: 'Örn: 1M OwO Cash' }); prize.addEventListener('input', () => { f.prize = prize.value; });
-  const chan = picker(f, 'channelId', chanItems(), '— Varsayılan kanal —');
-  chan.addEventListener('change', () => { f.channelId = chan.value; });
-  return h('div', { class: 'pane', id: 'pane-giveaways' },
-    h('div', { class: 'card' }, h('h2', {}, 'Çekiliş sistemi'),
-      h('p', { class: 'hint', style: 'margin-bottom:10px' }, 'Çekiliş bitince bot sonuç mesajı atar: kazananlar "Ödülünü Al" butonuna basınca aşağıda seçtiğin çekiliş kategorisinde bir destek talebi açılır ve kazandıkları ödül orada yazar. "Tekrar Çek" butonu yetkililer içindir. Panel görünümünde gizli kalan bu kategori sitede "çekiliş" etiketiyle görünür.'),
-      check(g, 'enabled', 'Çekiliş sistemi açık (kaydedince geçerli olur)'),
-      h('div', { class: 'grid2' },
-        field('Ödül talepleri hangi kategoride açılsın?', catSel, 'Kategoriler sekmesinden bu kategoriye özel roller / Discord kategorisi / form atayabilirsin. Gizli kategori panelde (buton/liste) görünmez.'),
-        field('Varsayılan çekiliş kanalı', picker(g, 'channelId', chanItems()), 'Panelden çekiliş başlatırken kanal seçmezsen burası kullanılır.'),
-        field('Ödül alma süresi (saat)', num(g, 'claimHours', 0, 720), '0 = süresiz. Kazanan bu süreden sonra "Ödülünü Al"a basarsa reddedilir.')),
-      check(g, 'showOnSite', 'Sitede çalışan ve biten çekilişleri göster'),
-      check(g, 'showWinnersOnSite', 'Sitede kazanan kullanıcı adlarını da göster')),
-    h('div', { class: 'card' }, h('h2', {}, 'Çekiliş başlat'),
-      !meta.connected && h('div', { class: 'banner bad' }, 'Bot bağlı değil.'),
-      h('div', { class: 'grid2' }, field('Kanal', chan), field('Süre', dur, 'Örn: 30m, 2h, 1d, 1h30m (en az 10 sn, en fazla 30 gün)'), field('Kazanan sayısı', win), field('Ödül', prize)),
-      h('h3', { style: 'margin:14px 0 4px' }, 'Şartlar (isteğe bağlı)'),
-      h('p', { class: 'hint', style: 'margin-bottom:8px' }, 'Herkes katılabilir; çekiliş bitince kazananlar kontrol edilir. Şartı yapmayan kazanan, sonuç mesajında yine görünür ama \"Ödülünü Al\"a basınca \"kazanmadın\" der; yetkili \"Tekrar çek\" yapınca yerine yeni kazanan seçilir. Mesaj, ses ve davet çekiliş başladıktan sonrasını sayar. Kullanıcılar çekiliş mesajındaki \"Şartlarım\" butonuyla durumlarına bakabilir.'),
-      h('div', { class: 'grid2' },
-        field('Gereken roller (hepsi gerekli)', reqRoles(req.roleIds), 'Seçmezsen rol şartı yok.'),
-        field('Sunucu etiketi (tag)', reqCheck(req, 'serverTag', 'Sunucunun etiketini profiline takmış olmalı'), 'Discord profilindeki \"sunucu etiketi\" (tag) bu sunucununki olmalı.'),
-        field('Özel durum yazısı', reqText(req, 'statusText', '.gg/deuslra'), schema.presenceOn ? 'Kişinin özel durumunda bu yazı geçmeli (büyük/küçük harf fark etmez). Çevrimdışı görünenin durumu okunamaz.' : '⚠ Kapalı: .env\'ye USE_PRESENCE=true ekle ve Developer Portal > Bot > Presence Intent\'i aç.'),
-        field('Ses aktifliği (dakika)', reqNum(req, 'voiceMinutes', 100000), '0 = şart yok. AFK kanalı sayılmaz.'),
-        field('Mesaj sayısı', reqNum(req, 'messages', 100000), '0 = şart yok. Aynı kişinin 3 sn içindeki mesajları tek sayılır.'),
-        field('Davet sayısı', reqNum(req, 'invites', 10000), schema.membersOn ? '0 = şart yok. Davet ettiği kişi çıkarsa sayıdan düşer. Botta \"Sunucuyu Yönet\" izni gerekir.' : '⚠ Kapalı: .env\'ye GUILD_MEMBERS_INTENT=true ekle ve Developer Portal > Bot > Server Members Intent\'i aç.')),
-      h('button', { class: 'btn accent', onclick: e => act(e.target, async () => {
-        const r = await api('admin/giveaways/start', { channelId: f.channelId, duration: f.duration, winners: f.winners, prize: f.prize, requirements: req });
-        await load(); return r;
-      }) }, '🎉 Çekilişi başlat'),
-      h('p', { class: 'hint', style: 'margin-top:10px' }, 'Discord\'da yazıyla: .gstart 1h 3 1M OwO Cash · şartlı: .gstart 1d 2 Nitro | invite=2 mesaj=50 ses=30 tag rol=@rol durum=.gg/deuslra · .gend · .greroll · .gcancel · .glist (Komutlar sekmesinden eklemen gerekebilir). Slash: /cekilis baslat (şartlar seçenek olarak gelir).')),
-    h('div', { class: 'card' }, h('div', { class: 'bhead' }, h('h2', {}, 'Çekilişler'), h('button', { class: 'btn ghost sm', onclick: load }, 'Yenile')), listEl),
-    h('p', { class: 'hint' }, 'Buton ve mesaj yazıları "Bot mesajları" sekmesindeki "Çekiliş" grubunda; sitedeki başlıklar "Site yazıları"nda.'));
-}
-
 /* ---------- ana iskelet ---------- */
 function showApp() {
-  const tabs = [['overview', '📊', 'Genel bakış', overviewPane], ['general', '⚙️', 'Ayarlar', generalPane], ['look', '🎨', 'Panel görünümü', appearancePane], ['buttons', '🎫', 'Kategoriler & formlar', buttonsPane],
-    ['stats', '📈', 'İstatistikler', statsPane],
-    ['ticketbtn', '🔘', 'Talep butonları', ticketButtonsPane],
-    ['canned', '📋', 'Hazır cevaplar', cannedPane],
-    ['commands', '⌨️', 'Komutlar', commandsPane],
-    ['giveaways', '🎁', 'Çekilişler', giveawaysPane],
-    ['messages', '💬', 'Bot mesajları', () => textsPane('messages', 'Bot mesajları', 'Botun ticket açarken, kapatırken, silerken, DM\'de ve logda yazdığı bütün yazılar. {süslü} kısımlar otomatik doldurulur; her yazıda yukarıdaki tablodaki değişkenleri kullanabilirsin. Kutuyu boş bırakırsan varsayılan yazı kullanılır.', schema.messages, cfg.messages)],
-    ['site', '🌐', 'Site yazıları', () => textsPane('site', 'Site yazıları', 'Ana sayfadaki bütün başlıklar, açıklamalar ve düğme yazıları. {server} {members} {open} {closed} {total} {brand} {bot} {ping} {date} {time} {day} {year} {greeting} değişkenlerini kullanabilirsin.', schema.site, cfg.site)]];
-  const panes = tabs.map(t => t[3]());
-  saveInfo = h('span', { class: 'muted sm' }, 'Tüm ayarlar kayıtlı');
-  const nav = h('nav', { class: 'card side' }, tabs.map(([id, ico, name], i) => h('button', {
-    class: i === 0 ? 'on' : '', onclick: e => {
-      nav.querySelectorAll('button').forEach(b => b.classList.remove('on')); e.currentTarget.classList.add('on');
-      panes.forEach(p => p.classList.remove('on')); panes[i].classList.add('on');
-      if (id === 'look') refreshPreview();
+  const notGw = list => list.filter(d => !d.key.startsWith('gw'));
+  const sections = {
+    destek: {
+      ico: '🎫', name: 'Destek', first: 'overview',
+      tabs: [['overview', '📊', 'Genel bakış', overviewPane], ['general', '⚙️', 'Ayarlar', generalPane], ['look', '🎨', 'Panel görünümü', appearancePane], ['buttons', '🎫', 'Kategoriler & formlar', buttonsPane],
+        ['stats', '📈', 'İstatistikler', statsPane], ['ticketbtn', '🔘', 'Talep butonları', ticketButtonsPane], ['canned', '📋', 'Hazır cevaplar', cannedPane], ['commands', '⌨️', 'Komutlar', commandsPane],
+        ['messages', '💬', 'Bot mesajları', () => textsPane('messages', 'Bot mesajları', 'Botun ticket açarken, kapatırken, silerken, DM\'de ve logda yazdığı bütün yazılar. {süslü} kısımlar otomatik doldurulur; her yazıda yukarıdaki tablodaki değişkenleri kullanabilirsin. Kutuyu boş bırakırsan varsayılan yazı kullanılır. (Çekiliş yazıları Çekiliş bölümünde.)', notGw(schema.messages), cfg.messages)],
+        ['site', '🌐', 'Site yazıları', () => textsPane('site', 'Site yazıları', 'Ana sayfadaki bütün başlıklar, açıklamalar ve düğme yazıları. {server} {members} {open} {closed} {total} {brand} {bot} {ping} {date} {time} {day} {year} {greeting} değişkenlerini kullanabilirsin. (Çekiliş başlıkları Çekiliş bölümünde.)', notGw(schema.site), cfg.site)]],
     },
-  }, `${ico}  ${name}`)),
-    h('hr', {}), h('button', { onclick: () => { location.href = '/'; } }, '🏠  Siteye dön'),
-    h('button', { onclick: async () => { await api('logout', {}); location.reload(); } }, '🚪  Çıkış yap'));
+    cekilis: { ico: '🎁', name: 'Çekiliş', first: 'gwoverview', tabs: gwTabs() },
+  };
+  const panes = {};
+  for (const [sid, sec] of Object.entries(sections)) sec.tabs.forEach(t => { panes[`${sid}:${t[0]}`] = t[3](); });
+  saveInfo = h('span', { class: 'muted sm' }, 'Tüm ayarlar kayıtlı');
+
+  let cur = location.hash === '#cekilis' ? 'cekilis' : 'destek';
+  const curTab = { destek: 'overview', cekilis: 'gwoverview' };
+  const nav = h('nav', { class: 'card side' });
+  const seg = h('div', { class: 'seg top-seg' });
+  const render = () => {
+    seg.replaceChildren(...Object.entries(sections).map(([sid, sec]) => h('button', { class: sid === cur ? 'on' : '', onclick: () => { cur = sid; history.replaceState(null, '', `#${sid}`); render(); } }, `${sec.ico}  ${sec.name}`)));
+    const sec = sections[cur];
+    nav.replaceChildren(h('div', { class: 'side-title' }, `${sec.ico} ${sec.name}`),
+      ...sec.tabs.map(([id, ico, name]) => h('button', { class: id === curTab[cur] ? 'on' : '', onclick: () => { curTab[cur] = id; render(); } }, `${ico}  ${name}`)),
+      h('hr', {}), h('button', { onclick: () => { location.href = '/'; } }, '🏠  Siteye dön'),
+      h('button', { onclick: async () => { await api('logout', {}); location.reload(); } }, '🚪  Çıkış yap'));
+    for (const [key, el] of Object.entries(panes)) el.classList.toggle('on', key === `${cur}:${curTab[cur]}`);
+    if (cur === 'destek' && curTab.destek === 'look') refreshPreview();
+    if (cur === 'cekilis') gwReload();
+    document.title = `${sec.name} paneli · ${cfg.brandName}`;
+  };
+  render();
+  window.addEventListener('hashchange', () => { const n = location.hash === '#cekilis' ? 'cekilis' : 'destek'; if (n !== cur) { cur = n; render(); } });
+
   root.replaceChildren(
-    h('header', { class: 'top' }, h('div', { class: 'brand' }, h('div', { class: 'icobox' }, h('span', {}, '🛡️')), h('div', {}, h('b', {}, cfg.brandName), h('span', {}, 'Yönetim paneli'))),
+    h('header', { class: 'top' }, h('div', { class: 'brand' }, h('div', { class: 'icobox' }, h('span', {}, '🛡️')), h('div', {}, h('b', {}, cfg.brandName), h('span', {}, 'Destek & Çekiliş'))),
+      seg,
       h('div', { class: 'right' }, h('span', { class: 'pill' }, h('i', { class: `dot ${meta.connected ? '' : 'off'}` }), meta.connected ? meta.guild.name : 'Bot bağlı değil'),
         h('button', { class: 'icon-btn', title: 'Açık / koyu tema', 'aria-label': 'Temayı değiştir', onclick: () => window.toggleTheme() }, '🌓'))),
-    h('div', { class: 'shell' }, nav, h('main', {}, panes)),
+    h('div', { class: 'shell' }, nav, h('main', {}, Object.values(panes))),
     h('div', { class: 'savebar' }, saveInfo,
       h('button', { class: 'btn ghost', onclick: e => act(e.target, save) }, 'Ayarları kaydet'),
       h('button', { class: 'btn accent', onclick: e => act(e.target, saveAndPublish) }, 'Kaydet ve Discord\'a gönder')));
@@ -889,7 +818,7 @@ function showLogin(enabled) {
   const btn = h('button', { class: 'btn', style: 'width:100%', onclick: e => go(e.target) }, 'Giriş yap');
   pw.addEventListener('keydown', e => { if (e.key === 'Enter') go(btn); });
   root.replaceChildren(h('div', { class: 'card login' },
-    h('div', { class: 'icobox', style: 'margin-bottom:16px' }, h('span', {}, '🛡️')), h('h1', {}, 'Yönetim paneli'),
+    h('div', { class: 'icobox', style: 'margin-bottom:16px' }, h('span', {}, '🛡️')), h('h1', {}, 'Destek & Çekiliş paneli'),
     enabled ? h('div', {}, h('p', { class: 'muted' }, 'Devam etmek için şifreni gir.'), field('Şifre', pw), btn)
       : h('p', { class: 'muted' }, 'PANEL_PASSWORD tanımlı değil. Bir şifre yazıp botu yeniden başlat.'),
     h('p', { class: 'hint', style: 'margin-top:14px' }, h('a', { href: '/', style: 'color:var(--accent)' }, '← Siteye dön'))));

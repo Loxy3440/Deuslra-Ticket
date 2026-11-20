@@ -1,4 +1,4 @@
-const { ChannelType } = require('discord.js');
+const { ChannelType, PermissionFlagsBits } = require('discord.js');
 const { ConfigError, readConfig, writeConfig, getGuildId, parseTicket } = require('./config');
 const store = require('./store');
 const tickets = require('./tickets');
@@ -218,6 +218,31 @@ const handlers = {
     const res = await gw.start({ client, config, channel, hostId: client.user.id, ms, winners: Math.min(Math.max(parseInt(body.winners, 10) || 1, 1), 20), prize: String(body.prize || '').trim().slice(0, 200), roleId: String(body.roleId || ''), requirements: body.requirements });
     if (res.error) throw new ApiError(400, res.error);
     return { ok: true, message: 'Çekiliş başlatıldı.', url: res.url };
+  },
+  'POST giveaways/detail': async (client, body) => { const d = gw.detail({ client, id: String(body.id || '') }); if (!d) throw new ApiError(404, 'Çekiliş bulunamadı.'); return d; },
+  'POST giveaways/check': async (client, body) => { const r = await gw.checkUser({ client, config: readConfig(), id: String(body.id || ''), userId: String(body.userId || '').replace(/\D/g, '') }); if (r.error) throw new ApiError(400, r.error); return r; },
+  'POST giveaways/override': async (client, body) => { const r = gw.override({ id: String(body.id || ''), userId: String(body.userId || ''), ok: Boolean(body.ok), reason: body.reason }); if (r.error) throw new ApiError(400, r.error); return { ok: true, message: body.ok ? 'Kazanan geri alındı.' : 'Kazanan düşürüldü. Tekrar çek yapınca yerine yeni kazanan seçilir.' }; },
+  // Kurulum kontrolü: çekilişin çalışması için gerekenler
+  'GET giveaways/setup': async client => {
+    const cfg = readConfig(); const guild = client.guilds.cache.get(getGuildId(cfg)) || client.guilds.cache.first();
+    const row = (id, label, ok, detail, fix) => ({ id, label, ok, detail, fix: ok ? '' : fix });
+    const rows = [];
+    rows.push(row('bot', 'Bot sunucuda', Boolean(guild), guild ? guild.name : 'Bot bağlı değil', 'Botu başlat / sunucuya ekle.'));
+    rows.push(row('enabled', 'Çekiliş sistemi açık', cfg.giveaways.enabled, cfg.giveaways.enabled ? 'Açık' : 'Kapalı', 'Ayarlar sekmesinden aç ve kaydet.'));
+    const ch = guild?.channels.cache.get(cfg.giveaways.channelId);
+    const need = ['ViewChannel', 'SendMessages', 'EmbedLinks', 'ReadMessageHistory'];
+    const miss = ch ? need.filter(p => !ch.permissionsFor(guild.members.me)?.has(PermissionFlagsBits[p])) : [];
+    rows.push(row('channel', 'Varsayılan çekiliş kanalı', Boolean(ch) && !miss.length, ch ? (miss.length ? `#${ch.name}: botun şu izinleri yok: ${miss.join(', ')}` : `#${ch.name}`) : 'Seçilmedi (kanal her çekilişte ayrıca seçilebilir)', 'Ayarlar sekmesinden kanal seç ve botun bu kanalda mesaj atabildiğinden emin ol.'));
+    const cat = cfg.buttons.find(b => b.id === cfg.giveaways.categoryId);
+    rows.push(row('category', 'Ödül talebi kategorisi', Boolean(cat), cat ? `${cat.emoji || ''} ${cat.label}` : 'Bulunamadı', 'Ayarlar sekmesinden bir kategori seç.'));
+    rows.push(row('msgs', 'Mesaj sayısı şartı', true, 'Hazır (ek ayar gerekmez)', ''));
+    rows.push(row('voice', 'Ses aktifliği şartı', true, 'Hazır (ek ayar gerekmez)', ''));
+    rows.push(row('rolestag', 'Rol ve sunucu etiketi şartları', true, 'Hazır (ek ayar gerekmez)', ''));
+    const pres = process.env.USE_PRESENCE === 'true';
+    rows.push(row('presence', 'Durum şartı', pres, pres ? 'Presence Intent açık' : 'Kapalı', '.env içine USE_PRESENCE=true ekle, Developer Portal > Bot > Presence Intent\'i aç ve botu yeniden başlat.'));
+    const mem = process.env.GUILD_MEMBERS_INTENT === 'true'; const mg = Boolean(guild?.members.me?.permissions.has(PermissionFlagsBits.ManageGuild));
+    rows.push(row('invites', 'Davet sayısı şartı', mem && mg, `${mem ? 'Server Members Intent açık' : 'Server Members Intent kapalı'} · ${mg ? 'Sunucuyu Yönet izni var' : 'Sunucuyu Yönet izni yok'}`, 'Developer Portal > Bot > Server Members Intent\'i aç, .env içine GUILD_MEMBERS_INTENT=true ekle, bota "Sunucuyu Yönet" izni ver ve botu yeniden başlat.'));
+    return { rows };
   },
   'POST giveaways/end': async (client, body) => { const r = await gw.finish({ client, config: readConfig(), id: String(body.id || '') }); if (r.error) throw new ApiError(400, r.error); return { ok: true, message: 'Çekiliş bitirildi.' }; },
   'POST giveaways/reroll': async (client, body) => { const r = await gw.reroll({ client, config: readConfig(), id: String(body.id || ''), count: body.count }); if (r.error) throw new ApiError(400, r.error); return { ok: true, message: 'Tekrar çekildi.' }; },

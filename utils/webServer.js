@@ -181,7 +181,7 @@ function startWebServer(client) {
   });
   server.listen(port, host, () => {
     const base = process.env.RENDER_EXTERNAL_URL || `http://localhost:${port}`;
-    console.info(`[WEB] Yayında (port ${port}) · Site: ${base} · Yönetim paneli: ${base}/panel`);
+    console.info(`[WEB] Yayında (port ${port}) · Site: ${base} · Destek paneli: ${base}/panel#destek · Çekiliş paneli: ${base}/panel#cekilis`);
     if (!process.env.PANEL_PASSWORD) console.warn('[WEB] PANEL_PASSWORD tanımlı değil: yönetim paneli kapalı.');
     if (onRender() && process.env.PANEL_PASSWORD && process.env.PANEL_PASSWORD.length < 12) console.warn('[WEB] Panel internete açık: en az 12 karakterlik bir PANEL_PASSWORD kullan.');
   });

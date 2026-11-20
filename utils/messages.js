@@ -282,7 +282,8 @@ const SITE_DEFS = [
   D('gwClaimedLabel', 'Çekilişler', 'Ödül alınmış etiketi', 'ödül talebi açıldı'),
   D('gwCatBadge', 'Çekilişler', 'Kategorilerde çekiliş rozeti', 'Çekiliş ödül kategorisi'),
   D('gwCatDesc', 'Çekilişler', 'Çekiliş kategorisi açıklaması (boşsa kategorinin kendi açıklaması)', 'Çekiliş kazandıysan ödülünü buradan teslim alırsın: sonuç mesajındaki "Ödülünü Al" butonuna bas.', [], { multi: true }),
-  D('footerAdmin', 'Menü ve alt bilgi', 'Alt bilgi: yönetim bağlantısı', 'Yönetim paneli'),
+  D('footerAdmin', 'Menü ve alt bilgi', 'Alt bilgi: destek paneli bağlantısı', 'Destek paneli'),
+  D('footerGiveaway', 'Menü ve alt bilgi', 'Alt bilgi: çekiliş paneli bağlantısı', 'Çekiliş paneli'),
 ];
 
 const defaultsOf = defs => Object.fromEntries(defs.map(d => [d.key, d.def]));

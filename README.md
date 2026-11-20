@@ -32,7 +32,7 @@ render.yaml       Render blueprint dosyası
    ```
 5. Tarayıcıdan aç:
    - Site: <http://localhost:3000>
-   - Yönetim paneli: <http://localhost:3000/panel>
+   - Destek & Çekiliş paneli: <http://localhost:3000/panel>
 
 Port doluysa `.env` içinde `PORT=3001` gibi değiştir.
 
@@ -46,7 +46,7 @@ Daha önce gönderilmiş bir panel mesajı varsa yenisini atmaz, onu günceller.
 
 ## Panel Discord'a gitmiyorsa
 
-Yönetim paneli > **Genel bakış > Kurulum durumu** kutusu her adımı kontrol eder ve neyin eksik olduğunu yazar. En sık sebep botun izinleri: bot **Rolleri Yönet** iznine de ihtiyaç duyar (kapanan ticketı kullanıcıdan gizlemek ve `/add` için). Kutudaki **Botu doğru izinlerle davet et** bağlantısı gerekli tüm izinleri tek seferde verir.
+Destek & Çekiliş paneli > **Genel bakış > Kurulum durumu** kutusu her adımı kontrol eder ve neyin eksik olduğunu yazar. En sık sebep botun izinleri: bot **Rolleri Yönet** iznine de ihtiyaç duyar (kapanan ticketı kullanıcıdan gizlemek ve `/add` için). Kutudaki **Botu doğru izinlerle davet et** bağlantısı gerekli tüm izinleri tek seferde verir.
 
 ## Kategori seçimi: buton, açılır liste veya ikisi
 

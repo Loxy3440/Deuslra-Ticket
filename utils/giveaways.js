@@ -273,14 +273,14 @@ function runningEmbed(config, g) {
 }
 const joinRow = (config, disabled = false, g = null) => {
   const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('gw-join').setLabel(baseMsg(config, 'gwJoinBtn').slice(0, 80)).setEmoji('<:giveaway:1568552724457586739> ').setStyle(ButtonStyle.Primary).setDisabled(disabled),
+    new ButtonBuilder().setCustomId('gw-join').setLabel(baseMsg(config, 'gwJoinBtn').slice(0, 80)).setEmoji('🎉').setStyle(ButtonStyle.Primary).setDisabled(disabled),
   );
-  if (g && hasReq(g)) row.addComponents(new ButtonBuilder().setCustomId('gw-status').setLabel(baseMsg(config, 'gwStatusBtn').slice(0, 80)).setEmoji('<:ruless:1568552732502269982> ').setStyle(ButtonStyle.Secondary).setDisabled(disabled));
+  if (g && hasReq(g)) row.addComponents(new ButtonBuilder().setCustomId('gw-status').setLabel(baseMsg(config, 'gwStatusBtn').slice(0, 80)).setEmoji('📋').setStyle(ButtonStyle.Secondary).setDisabled(disabled));
   return [row];
 };
 const resultRow = (config, id) => [new ActionRowBuilder().addComponents(
-  new ButtonBuilder().setCustomId(`gw-claim:${id}`).setLabel(baseMsg(config, 'gwClaimBtn').slice(0, 80)).setEmoji('<:giveaway:1568552724457586739> ').setStyle(ButtonStyle.Success),
-  new ButtonBuilder().setCustomId(`gw-reroll:${id}`).setLabel(baseMsg(config, 'gwRerollBtn').slice(0, 80)).setEmoji('<:refreshh:1572617938014576760>').setStyle(ButtonStyle.Secondary),
+  new ButtonBuilder().setCustomId(`gw-claim:${id}`).setLabel(baseMsg(config, 'gwClaimBtn').slice(0, 80)).setEmoji('🎁').setStyle(ButtonStyle.Success),
+  new ButtonBuilder().setCustomId(`gw-reroll:${id}`).setLabel(baseMsg(config, 'gwRerollBtn').slice(0, 80)).setEmoji('🔔').setStyle(ButtonStyle.Secondary),
 )];
 
 async function fetchChannel(client, id) { return client.channels.cache.get(id) || (await client.channels.fetch(id).catch(() => null)); }
@@ -492,12 +492,53 @@ function startGiveawayWatcher(client) {
   setTimeout(() => tick().catch(() => null), 3000);
 }
 
+// Panel: tek çekilişin tüm ayrıntısı (şart ilerlemeleri, kazananların şart sonucu, ödül talepleri, zaman çizelgesi)
+function detail({ client, id }) {
+  const g = get(id);
+  if (!g) return null;
+  const nameOf = uid => client.users.cache.get(uid)?.username || g.winnerTags?.[uid] || uid;
+  const uids = new Set([...Object.keys(g.progress || {}), ...g.winners]);
+  const people = [...uids].map(uid => ({
+    id: uid, tag: nameOf(uid), joined: g.entries.includes(uid),
+    messages: g.progress?.[uid]?.messages || 0, voiceMin: Math.floor(voiceMsOf(g, uid) / 60000), invites: g.progress?.[uid]?.invitedIds?.length || 0,
+  })).sort((a, b) => (b.messages + b.voiceMin + b.invites * 10) - (a.messages + a.voiceMin + a.invites * 10)).slice(0, 50);
+  return {
+    ...view(g), createdAt: g.createdAt || 0, hostId: g.hostId, roleId: g.roleId || '', resultUrl: g.resultUrl || '', channelId: g.channelId,
+    entriesSample: g.entries.slice(0, 100).map(u => ({ id: u, tag: nameOf(u) })),
+    people,
+    winnersDetail: g.winners.map(uid => ({
+      id: uid, tag: g.winnerTags?.[uid] || nameOf(uid), wonAt: g.wonAt?.[uid] || 0, claimChannelId: g.claims?.[uid] || '',
+      ok: g.checks?.[uid] ? g.checks[uid].ok : true, failed: g.checks?.[uid]?.failed || [], manual: Boolean(g.checks?.[uid]?.manual), replaced: Boolean(g.replaced?.[uid]),
+    })),
+  };
+}
+
+// Panel: yetkili bir kazananı elle düşürür / geri alır (şart sonucunu değiştirir)
+function override({ id, userId, ok, reason }) {
+  const g = get(id);
+  if (!g || g.status !== 'ended' || !g.winners.includes(userId)) return { error: 'Bu kişi bu çekilişin kazananı değil.' };
+  ensure(g);
+  g.checks[userId] = { ok: Boolean(ok), failed: ok ? [] : [String(reason || 'Yetkili tarafından düşürüldü').slice(0, 200)], at: Date.now(), manual: true };
+  if (ok) delete g.replaced[userId];
+  save();
+  return { giveaway: g };
+}
+
+// Panel: bir kişinin şartlarının şu anki durumu
+async function checkUser({ client, config, id, userId }) {
+  const g = get(id);
+  if (!g) return { error: 'Çekiliş bulunamadı.' };
+  if (!hasReq(g)) return { results: [], ok: true };
+  const res = await evaluate({ client, config, g, userId });
+  return { ok: res.ok, results: res.results.map(x => ({ label: x.label, ok: x.ok, cur: x.cur, need: x.need })) };
+}
+
 // Siteye / panele giden sade görünüm
 const view = g => ({
   id: g.id, prize: g.prize, status: g.status, winnersCount: g.winnersCount, entries: g.entries.length,
-  endsAt: g.endsAt, endedAt: g.endedAt || 0, hostTag: g.hostTag || '', channelId: g.channelId, url: g.url || '',
+  endsAt: g.endsAt, endedAt: g.endedAt || 0, createdAt: g.createdAt || 0, hostTag: g.hostTag || '', channelId: g.channelId, url: g.url || '',
   requirements: g.requirements || null,
   winners: g.winners.map(id => ({ id, tag: g.winnerTags?.[id] || id, claimed: Boolean(g.claims?.[id]), disq: g.checks?.[id]?.ok === false, failed: g.checks?.[id]?.failed || [] })),
 });
 
-module.exports = { parseDuration, parseStart, cleanReq, hasReq, list, running, get, start, finish, reroll, cancel, remove, handleJoin, handleStatus, handleClaim, handleReroll, runCommand, startGiveawayWatcher, view, trackMessage, voiceUpdate, onMemberJoin, onMemberLeave, flush };
+module.exports = { parseDuration, parseStart, cleanReq, hasReq, list, running, get, start, finish, reroll, cancel, remove, handleJoin, handleStatus, handleClaim, handleReroll, runCommand, startGiveawayWatcher, view, detail, override, checkUser, trackMessage, voiceUpdate, onMemberJoin, onMemberLeave, flush };
