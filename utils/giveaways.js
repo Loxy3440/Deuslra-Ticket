@@ -254,23 +254,73 @@ async function checkAndStore({ client, config, g, userId }) {
   return res;
 }
 
-function runningEmbed(config, g) {
+// ---------- Embed şablonları ----------
+// Çekiliş embed'lerinin her parçası Panel > Çekiliş > Çekiliş mesajları'ndan düzenlenir; {prize} {winners} {entries} {host} {ends} {user} gibi değişkenler kullanılabilir.
+const hexColor = v => { const m = /^#?([0-9a-f]{6})$/i.exec(String(v || '').trim()); return m ? parseInt(m[1], 16) : null; };
+const httpUrl = v => { const t = String(v || '').trim(); return /^https?:\/\/\S+$/i.test(t) ? t.slice(0, 500) : null; };
+
+function tplVars(config, g, extra = {}) {
+  const entries = g.entries || [];
   const m = k => baseMsg(config, k);
-  const e = new EmbedBuilder().setColor(config.colors.main)
-    .setTitle(`${m('gwRunningTitle')} · ${g.prize}`.slice(0, 256))
-    .setDescription(m('gwRunningText'))
-    .addFields(
-      { name: m('gwFieldPrize'), value: g.prize.slice(0, 1000), inline: true },
-      { name: m('gwFieldWinners'), value: String(g.winnersCount), inline: true },
-      { name: m('gwFieldEnds'), value: `<t:${unix(g.endsAt)}:R> (<t:${unix(g.endsAt)}:f>)`, inline: true },
-      { name: m('gwFieldHost'), value: `<@${g.hostId}>`, inline: true },
-      { name: m('gwFieldEntries'), value: String(g.entries.length), inline: true },
-    )
-    .setFooter({ text: `ID: ${g.id} • ${config.brandName}` });
-  if (g.roleId) e.addFields({ name: m('gwFieldRole'), value: `<@&${g.roleId}>`, inline: true });
-  if (hasReq(g)) e.addFields({ name: m('gwFieldReqs'), value: reqItems(config, g).map(x => `• ${x.label}`).join('\n').slice(0, 1000) });
+  const ids = extra.ids || g.winners || [];
+  return {
+    prize: g.prize, winnercount: String(g.winnersCount), winners: mentionList(ids), entries: String(entries.length),
+    participants: entries.length ? `${entries.slice(0, 15).map(id => `<@${id}>`).join(' ')}${entries.length > 15 ? ` +${entries.length - 15}` : ''}` : '—',
+    host: `<@${g.hostId}>`, id: g.id, brand: config.brandName,
+    ends: `<t:${unix(g.endsAt)}:R>`, endsfull: `<t:${unix(g.endsAt)}:f>`, started: g.createdAt ? `<t:${unix(g.createdAt)}:R>` : '',
+    role: g.roleId ? `<@&${g.roleId}>` : '', channel: `<#${g.channelId}>`,
+    requirements: hasReq(g) ? reqItems(config, g).map(x => `• ${x.label}`).join('\n') : '',
+    claimbtn: m('gwClaimBtn'), note: m('gwResultReqNote'),
+    status: hasReq(g) ? ids.map(id => {
+      const c = g.checks?.[id];
+      return c && c.ok === false ? baseMsg(config, 'gwStatusFail', { user: `<@${id}>`, missing: c.failed.join(', ') }) : baseMsg(config, 'gwStatusOk', { user: `<@${id}>` });
+    }).join('\n') : '',
+    ...extra,
+  };
+}
+
+// Alan tanımları: id -> [ad anahtarı, değer anahtarı, yan yana mı]
+const BASE_FIELDS = {
+  prize: ['gwFieldPrize', 'gwValPrize', true], winners: ['gwFieldWinners', 'gwValWinners', true], ends: ['gwFieldEnds', 'gwValEnds', true],
+  host: ['gwFieldHost', 'gwValHost', true], entries: ['gwFieldEntries', 'gwValEntries', true], role: ['gwFieldRole', 'gwValRole', true],
+  reqs: ['gwFieldReqs', 'gwValReqs', false], status: ['gwFieldStatus', 'gwValStatus', false],
+};
+const RUN_FIELDS = { ...BASE_FIELDS, x1: ['gwRunX1Name', 'gwRunX1Val', false], x2: ['gwRunX2Name', 'gwRunX2Val', false] };
+const RES_FIELDS = { ...BASE_FIELDS, reqs: ['gwFieldReqs', 'gwValReqsRes', false], x1: ['gwResX1Name', 'gwResX1Val', false], x2: ['gwResX2Name', 'gwResX2Val', false] };
+
+// Discord alan sınırı (1024): uzunsa satır ortasından değil, son tam satırdan keser
+const cutLines = (t, max) => { if (t.length <= max) return t; const c = t.slice(0, max - 2); const i = c.lastIndexOf('\n'); return `${i > 200 ? c.slice(0, i) : c}\n…`; };
+
+function templEmbed(config, g, vars, o) {
+  const m = k => baseMsg(config, k, vars);
+  const e = new EmbedBuilder().setColor(hexColor(m(o.colorKey)) ?? o.defColor);
+  const title = m(o.titleKey).trim(); if (title) e.setTitle(title.slice(0, 256));
+  const desc = (o.desc ?? m(o.descKey)).trim(); if (desc) e.setDescription(desc.slice(0, 4000));
+  const author = o.authorKey ? m(o.authorKey).trim() : ''; if (author) e.setAuthor({ name: author.slice(0, 256) });
+  const thumb = o.thumbKey && httpUrl(m(o.thumbKey)); if (thumb) e.setThumbnail(thumb);
+  const image = o.imageKey && httpUrl(m(o.imageKey)); if (image) e.setImage(image);
+  const inlineOn = !/^(hay[ıi]r|no|false|0)$/i.test(baseMsg(config, 'gwFieldsInline').trim());
+  const fields = [];
+  for (const id of baseMsg(config, o.orderKey).toLowerCase().split(/[\s,;|]+/).filter(Boolean)) {
+    const def = o.fields[id]; if (!def) continue;
+    const name = m(def[0]).trim(), value = m(def[1]).trim();
+    if (!name || !value || fields.some(f => f.id === id)) continue;
+    fields.push({ id, name: name.slice(0, 256), value: cutLines(value, 1024), inline: def[2] && inlineOn });
+  }
+  if (fields.length) e.addFields(fields.slice(0, 25).map(({ name, value, inline }) => ({ name, value, inline })));
+  const footer = o.footerKey ? m(o.footerKey).trim() : ''; if (footer) e.setFooter({ text: footer.slice(0, 2048) });
   return e;
 }
+const RUN_KEYS = { titleKey: 'gwRunTitle', descKey: 'gwRunDesc', colorKey: 'gwRunColor', authorKey: 'gwRunAuthor', thumbKey: 'gwRunThumb', imageKey: 'gwRunImage', footerKey: 'gwRunFooter', orderKey: 'gwRunOrder', fields: RUN_FIELDS };
+
+const runningEmbed = (config, g) => templEmbed(config, g, tplVars(config, g), { ...RUN_KEYS, defColor: config.colors.main });
+const endedEmbed = (config, g) => templEmbed(config, g, tplVars(config, g), { ...RUN_KEYS, titleKey: 'gwEndTitle', descKey: 'gwEndDesc', colorKey: 'gwEndColor', defColor: config.colors.warning,
+  desc: g.winners.length ? undefined : baseMsg(config, 'gwNoEntries') });
+const cancelledEmbed = (config, g) => templEmbed(config, g, tplVars(config, g), { ...RUN_KEYS, titleKey: 'gwCancelTitle', descKey: 'gwCancelDesc', colorKey: 'gwCancelColor', defColor: config.colors.danger || config.colors.warning });
+// Sonuç / tekrar çek mesajı: altta her kazananın şartları yapıp yapmadığı yazar
+const resultEmbed = (config, g, ids) => templEmbed(config, g, tplVars(config, g, { ids }), {
+  titleKey: 'gwResTitle', descKey: 'gwResBody', colorKey: 'gwResColor', authorKey: 'gwResAuthor', thumbKey: 'gwResThumb', imageKey: 'gwResImage', footerKey: 'gwResFooter', orderKey: 'gwResOrder', fields: RES_FIELDS, defColor: config.colors.success });
+
 const joinRow = (config, disabled = false, g = null) => {
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('gw-join').setLabel(baseMsg(config, 'gwJoinBtn').slice(0, 80)).setEmoji('🎉').setStyle(ButtonStyle.Primary).setDisabled(disabled),
@@ -310,13 +360,14 @@ async function start({ client, config, channel, hostId, ms, winners, prize, role
 // Katıl butonu: bas = katıl, tekrar bas = ayrıl
 const editTimers = new Map();
 async function handleJoin(interaction, config) {
+  const mu = (k, v) => baseMsg(config, k, { user: `<@${interaction.user.id}>`, ...v });
   const g = get(interaction.message.id);
   if (!g || g.status !== 'running') return replyPrivate(interaction, baseMsg(config, 'gwNotRunning'));
-  if (g.roleId && !interaction.member?.roles?.cache?.has(g.roleId)) return replyPrivate(interaction, baseMsg(config, 'gwNeedRole', { role: `<@&${g.roleId}>` }));
+  if (g.roleId && !interaction.member?.roles?.cache?.has(g.roleId)) return replyPrivate(interaction, mu('gwNeedRole', { role: `<@&${g.roleId}>` }));
   const i = g.entries.indexOf(interaction.user.id);
   if (i >= 0) g.entries.splice(i, 1); else g.entries.push(interaction.user.id);
   save();
-  const note = replyPrivate(interaction, baseMsg(config, i >= 0 ? 'gwLeft' : 'gwJoined'));
+  const note = replyPrivate(interaction, mu(i >= 0 ? 'gwLeft' : 'gwJoined'));
   clearTimeout(editTimers.get(g.id)); // çok katılım olunca mesajı her seferinde değil, 3 sn sonra bir kez güncelle
   editTimers.set(g.id, setTimeout(() => { editTimers.delete(g.id); interaction.message.edit({ embeds: [runningEmbed(config, g)] }).catch(() => null); }, 3000));
   return note;
@@ -327,9 +378,9 @@ const statusWait = new Map();
 async function handleStatus(interaction, config) {
   const g = get(interaction.message.id);
   if (!g || g.status !== 'running') return replyPrivate(interaction, baseMsg(config, 'gwNotRunning'));
-  if (!hasReq(g)) return replyPrivate(interaction, baseMsg(config, 'gwStatusNone'));
+  if (!hasReq(g)) return replyPrivate(interaction, baseMsg(config, 'gwStatusNone', { user: `<@${interaction.user.id}>` }));
   const uid = interaction.user.id;
-  if (Date.now() - (statusWait.get(uid) || 0) < 5000) return replyPrivate(interaction, baseMsg(config, 'gwStatusWait'));
+  if (Date.now() - (statusWait.get(uid) || 0) < 5000) return replyPrivate(interaction, baseMsg(config, 'gwStatusWait', { user: `<@${interaction.user.id}>` }));
   statusWait.set(uid, Date.now());
   if (statusWait.size > 2000) statusWait.clear();
   await interaction.deferReply({ ephemeral: true }).catch(() => null);
@@ -343,15 +394,20 @@ async function handleStatus(interaction, config) {
 async function postResult({ client, config, g, ids, header }) {
   const ch = await fetchChannel(client, g.channelId);
   if (!ch?.send) return null;
-  const m = (k, v) => baseMsg(config, k, v);
-  const body = [`${m('gwResultPrize')} \`${g.prize}\``, m('gwResultWinners'), mentionList(ids), '', m('gwResultText', { claimbtn: m('gwClaimBtn'), prize: g.prize })].join('\n');
-  const embed = new EmbedBuilder().setColor(config.colors.success).setTitle(m('gwResultTitle').slice(0, 256)).setDescription(body.slice(0, 4000))
-    .setFooter({ text: `ID: ${g.id} • ${config.brandName} • ${m('gwResultFooter')}` });
-  if (hasReq(g)) embed.addFields({ name: m('gwFieldReqs'), value: `${reqItems(config, g).map(x => `• ${x.label}`).join('\n')}\n\n${m('gwResultReqNote')}`.slice(0, 1000) });
+  const embed = resultEmbed(config, g, ids);
   const content = `${header ? `${header}\n` : ''}${ids.map(id => `<@${id}>`).join(' ')}`.slice(0, 2000);
   const sent = await ch.send({ content, embeds: [embed], components: resultRow(config, g.id), allowedMentions: { users: ids } }).catch(() => null);
-  if (sent) { g.resultMessageId = sent.id; g.resultUrl = sent.url; }
+  if (sent) { g.resultMessageId = sent.id; g.resultUrl = sent.url; (g.results ||= []).push({ id: sent.id, ids: [...ids] }); }
   return sent;
+}
+
+// Sonuç mesajlarındaki şart durumu satırlarını günceller (örn. panelden kazanan düşürülünce)
+async function refreshResults({ client, config, g }) {
+  const ch = await fetchChannel(client, g.channelId);
+  for (const r of g.results || []) {
+    const msg = await ch?.messages?.fetch?.(r.id).catch(() => null);
+    if (msg) await msg.edit({ embeds: [resultEmbed(config, g, r.ids)] }).catch(() => null);
+  }
 }
 
 async function finish({ client, config, id }) {
@@ -366,8 +422,7 @@ async function finish({ client, config, id }) {
   const ch = await fetchChannel(client, g.channelId);
   const orig = await ch?.messages?.fetch?.(g.id).catch(() => null);
   if (orig) {
-    const e = EmbedBuilder.from(runningEmbed(config, g)).setColor(config.colors.warning).setTitle(`${baseMsg(config, 'gwEndedTitle')} · ${g.prize}`.slice(0, 256))
-      .setDescription(g.winners.length ? mentionList(g.winners) : baseMsg(config, 'gwNoEntries'));
+    const e = endedEmbed(config, g);
     await orig.edit({ embeds: [e], components: joinRow(config, true, g) }).catch(() => null);
   }
   if (!g.winners.length) { await ch?.send?.({ content: baseMsg(config, 'gwNoEntries'), allowedMentions: { parse: [] } }).catch(() => null); save(); return { giveaway: g }; }
@@ -403,7 +458,7 @@ async function cancel({ client, config, id }) {
   const ch = await fetchChannel(client, g.channelId);
   const orig = await ch?.messages?.fetch?.(g.id).catch(() => null);
   if (orig) {
-    const e = EmbedBuilder.from(runningEmbed(config, g)).setColor(config.colors.danger || config.colors.warning).setTitle(`${baseMsg(config, 'gwCancelledTitle')} · ${g.prize}`.slice(0, 256));
+    const e = cancelledEmbed(config, g);
     await orig.edit({ embeds: [e], components: joinRow(config, true, g) }).catch(() => null);
   }
   return { giveaway: g };
@@ -414,14 +469,15 @@ function remove(id) { const g = get(id); if (!g) return false; delete data().ite
 // "Ödülünü Al": sadece kazanan basabilir -> çekiliş kategorisinde ödül talebi (ticket) açılır
 async function handleClaim(interaction, config, id) {
   const g = get(id);
-  if (!g || g.status !== 'ended') return replyPrivate(interaction, baseMsg(config, 'gwNotRunning'));
-  if (!g.winners.includes(interaction.user.id)) return replyPrivate(interaction, baseMsg(config, 'gwNotWinner'));
+  const mu = (k, v) => baseMsg(config, k, { user: `<@${interaction.user.id}>`, ...v });
+  if (!g || g.status !== 'ended') return replyPrivate(interaction, mu('gwNotRunning'));
+  if (!g.winners.includes(interaction.user.id)) return replyPrivate(interaction, mu('gwNotWinner'));
   const chk = g.checks?.[interaction.user.id];
-  if (chk && chk.ok === false) return replyPrivate(interaction, baseMsg(config, 'gwReqFailed', { missing: chk.failed.map(x => `• ${x}`).join('\n') }));
+  if (chk && chk.ok === false) return replyPrivate(interaction, mu('gwReqFailed', { missing: chk.failed.map(x => `• ${x}`).join('\n') }));
   const old = g.claims[interaction.user.id];
-  if (old && interaction.guild.channels.cache.has(old)) return replyPrivate(interaction, baseMsg(config, 'gwClaimExists', { channel: `<#${old}>` }));
+  if (old && interaction.guild.channels.cache.has(old)) return replyPrivate(interaction, mu('gwClaimExists', { channel: `<#${old}>` }));
   const hours = config.giveaways.claimHours;
-  if (hours > 0 && Date.now() - (g.wonAt[interaction.user.id] || g.endedAt || 0) > hours * 3600 * 1000) return replyPrivate(interaction, baseMsg(config, 'gwClaimExpired', { hours: String(hours) }));
+  if (hours > 0 && Date.now() - (g.wonAt[interaction.user.id] || g.endedAt || 0) > hours * 3600 * 1000) return replyPrivate(interaction, mu('gwClaimExpired', { hours: String(hours) }));
   await interaction.deferReply({ ephemeral: true }).catch(() => null);
   const t = require('./tickets');
   const button = config.buttons.find(b => b.id === config.giveaways.categoryId) || config.buttons[0];
@@ -436,7 +492,7 @@ async function handleClaim(interaction, config, id) {
   const res = await t.openTicket({ guild: interaction.guild, user: interaction.user, config, button, bypassLimit: true, extraEmbeds: [embed], extraRecord: { giveaway: { id: g.id, prize: g.prize, url: g.resultUrl || g.url || '' } } });
   if (res.error) return replyPrivate(interaction, res.error);
   g.claims[interaction.user.id] = res.channel.id; save();
-  return replyPrivate(interaction, baseMsg(config, 'gwClaimOpened', { channel: `${res.channel}` }));
+  return replyPrivate(interaction, mu('gwClaimOpened', { channel: `${res.channel}` }));
 }
 
 async function handleReroll(interaction, config, id) {
@@ -514,13 +570,14 @@ function detail({ client, id }) {
 }
 
 // Panel: yetkili bir kazananı elle düşürür / geri alır (şart sonucunu değiştirir)
-function override({ id, userId, ok, reason }) {
+async function override({ client, config, id, userId, ok, reason }) {
   const g = get(id);
   if (!g || g.status !== 'ended' || !g.winners.includes(userId)) return { error: 'Bu kişi bu çekilişin kazananı değil.' };
   ensure(g);
   g.checks[userId] = { ok: Boolean(ok), failed: ok ? [] : [String(reason || 'Yetkili tarafından düşürüldü').slice(0, 200)], at: Date.now(), manual: true };
   if (ok) delete g.replaced[userId];
   save();
+  if (client && config) await refreshResults({ client, config, g });
   return { giveaway: g };
 }
 

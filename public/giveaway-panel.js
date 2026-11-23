@@ -292,27 +292,57 @@ function gwSettingsPane() {
 function gwMessagesPane() {
   const defs = schema.messages.filter(d => d.key.startsWith('gw'));
   const val = k => (cfg.messages[k] && cfg.messages[k].trim()) || defs.find(d => d.key === k)?.def || '';
-  const fill = s => String(s).replace(/\{(\w+)\}/g, (m, k) => ({ claimbtn: val('gwClaimBtn'), n: '2', roles: '@VIP', text: '.gg/deuslra', role: '@VIP', winners: '2', missing: '• …', channel: '#odul-talebi', user: '@kullanıcı', hours: '72' }[k] || m));
+  const reqSample = () => [val('gwReqRole').replace('{roles}', '@VIP'), val('gwReqTag'), val('gwReqVoice').replace('{n}', '30'), val('gwReqMessages').replace('{n}', '50'), val('gwReqInvites').replace('{n}', '2')];
+  // Sunucudaki şablon sistemiyle aynı mantık, örnek değerlerle
+  const vars = () => {
+    const rs = reqSample();
+    const fill = (t, v) => String(t).replace(/\{(\w+)\}/g, (m, k) => (k.toLowerCase() in v ? v[k.toLowerCase()] : m));
+    const v = { prize: '1M OwO Cash', winnercount: '2', winners: '• @ali\n• @veli', entries: '37', participants: '@ali @veli @ayse +34', host: '@yetkili', id: 'ab12cd', brand: cfg.brandName || 'Marka',
+      ends: 'yarın 18:00', endsfull: '26 Kasım 18:00', started: '2 saat önce', role: '@VIP', channel: '#cekilis', requirements: rs.map(x => `• ${x}`).join('\n'), claimbtn: val('gwClaimBtn'), note: val('gwResultReqNote'), user: '@kullanıcı', missing: 'Davet (0/2)' };
+    v.status = `${fill(val('gwStatusOk'), { ...v, user: '@ali' })}\n${fill(val('gwStatusFail'), { ...v, user: '@veli', missing: `${rs[4]} (0/2)` })}`;
+    return { v, fill };
+  };
+  const BASE = { prize: ['gwFieldPrize', 'gwValPrize', 1], winners: ['gwFieldWinners', 'gwValWinners', 1], ends: ['gwFieldEnds', 'gwValEnds', 1], host: ['gwFieldHost', 'gwValHost', 1], entries: ['gwFieldEntries', 'gwValEntries', 1], role: ['gwFieldRole', 'gwValRole', 1], reqs: ['gwFieldReqs', 'gwValReqs', 0], status: ['gwFieldStatus', 'gwValStatus', 0] };
+  const RUN = { ...BASE, x1: ['gwRunX1Name', 'gwRunX1Val', 0], x2: ['gwRunX2Name', 'gwRunX2Val', 0] };
+  const RES = { ...BASE, reqs: ['gwFieldReqs', 'gwValReqsRes', 0], x1: ['gwResX1Name', 'gwResX1Val', 0], x2: ['gwResX2Name', 'gwResX2Val', 0] };
   const prev = h('div', {});
   const draw = () => {
-    const lines = ['@VIP rolüne sahip ol', 'Sunucu etiketini (tag) profiline tak', 'Çekiliş boyunca seste en az 30 dakika kal', 'Çekiliş boyunca en az 50 mesaj yaz', 'Çekiliş boyunca en az 2 kişiyi sunucuya davet et'];
-    const real = [fill(val('gwReqRole')), fill(val('gwReqTag')), fill(val('gwReqVoice').replace('{n}', '30')), fill(val('gwReqMessages').replace('{n}', '50')), fill(val('gwReqInvites').replace('{n}', '2'))];
-    void lines;
-    const emb = (title, desc, fields, footer) => h('div', { class: 'dc-emb' }, h('b', {}, title), h('div', { class: 'dc-desc' }, desc),
-      h('div', { class: 'dc-fields' }, fields.map(([n, v]) => h('div', {}, h('b', { class: 'dc-fn' }, n), h('div', {}, v)))), footer ? h('div', { class: 'dc-foot' }, footer) : null);
+    const { v, fill } = vars();
+    const f = k => fill(val(k), v);
+    const inline = !/^(hay[ıi]r|no|false|0)$/i.test(val('gwFieldsInline').trim());
+    const emb = (o) => {
+      const col = /^#?[0-9a-f]{6}$/i.test(f(o.color).trim()) ? `#${f(o.color).trim().replace('#', '')}` : o.def;
+      const desc = o.desc !== undefined ? o.desc : f(o.descKey);
+      const fields = val(o.order).toLowerCase().split(/[\s,;|]+/).filter(Boolean).map(id => o.fields[id]).filter(Boolean)
+        .map(d => ({ n: f(d[0]).trim(), v: f(d[1]).trim(), inl: d[2] && inline })).filter(x => x.n && x.v);
+      const img = k => (/^https?:\/\/\S+$/i.test(f(k).trim()) ? f(k).trim() : '');
+      const el = h('div', { class: 'dc-emb', style: `border-left-color:${col}` },
+        o.author && f(o.author).trim() ? h('div', { class: 'dc-foot' }, f(o.author)) : null,
+        f(o.title).trim() ? h('b', {}, f(o.title)) : null,
+        desc.trim() ? h('div', { class: 'dc-desc' }, desc) : null,
+        fields.length ? h('div', { class: 'dc-fields' }, fields.map(x => h('div', { class: x.inl ? 'dc-inline' : '' }, h('b', { class: 'dc-fn' }, x.n), h('div', {}, x.v)))) : null,
+        o.image && img(o.image) ? h('div', { class: 'dc-foot' }, `🖼️ Büyük resim: ${img(o.image)}`) : null,
+        o.thumb && img(o.thumb) ? h('div', { class: 'dc-foot' }, `🖼️ Küçük resim: ${img(o.thumb)}`) : null,
+        o.footer && f(o.footer).trim() ? h('div', { class: 'dc-foot' }, f(o.footer)) : null);
+      return el;
+    };
     const btn = (t, c) => h('span', { class: `dc-btn ${c || ''}` }, t);
+    const run = { title: 'gwRunTitle', descKey: 'gwRunDesc', color: 'gwRunColor', author: 'gwRunAuthor', thumb: 'gwRunThumb', image: 'gwRunImage', footer: 'gwRunFooter', order: 'gwRunOrder', fields: RUN, def: '#5865f2' };
     prev.replaceChildren(h('div', { class: 'dc' },
-      emb(fill(val('gwRunningTitle')), fill(val('gwRunningText')), [[val('gwFieldPrize'), '1M OwO Cash'], [val('gwFieldWinners'), '2'], [val('gwFieldEnds'), 'yarın 18:00'], [val('gwFieldHost'), '@yetkili'], [val('gwFieldEntries'), '37'], [val('gwFieldReqs'), real.join('\n')]], 'ID: ab12cd • ' + (cfg.brandName || 'Marka')),
+      h('p', { class: 'hint' }, '1) Çalışan çekiliş'), emb(run),
       h('div', { style: 'margin:6px 0 14px' }, btn(`🎉 ${val('gwJoinBtn')}`, 'p'), ' ', btn(`📋 ${val('gwStatusBtn')}`)),
-      emb(fill(val('gwResultTitle')), `${val('gwResultPrize')} 1M OwO Cash\n${val('gwResultWinners')} @ali, @veli\n\n${fill(val('gwResultText'))}`, [[val('gwFieldReqs'), `${real[2]}\n\n${val('gwResultReqNote')}`]], 'ID: ab12cd • ' + (cfg.brandName || 'Marka') + ' • ' + val('gwResultFooter')),
-      h('div', { style: 'margin:6px 0 14px' }, btn(`🎁 ${val('gwClaimBtn')}`, 'g'), ' ', btn(`🔄 ${val('gwRerollBtn')}`)),
-      h('div', { class: 'dc-eph' }, fill(val('gwReqFailed').replace('{missing}', `• ${real[3]}\n• ${real[4]}`)))));
+      h('p', { class: 'hint' }, '2) Biten çekiliş (ilk mesaj)'), emb({ ...run, title: 'gwEndTitle', descKey: 'gwEndDesc', color: 'gwEndColor', def: '#f0b232' }),
+      h('p', { class: 'hint', style: 'margin-top:14px' }, '3) İptal edilen çekiliş'), emb({ ...run, title: 'gwCancelTitle', descKey: 'gwCancelDesc', color: 'gwCancelColor', def: '#da373c' }),
+      h('p', { class: 'hint', style: 'margin-top:14px' }, '4) Sonuç / tekrar çek mesajı (altta şart durumu)'),
+      emb({ title: 'gwResTitle', descKey: 'gwResBody', color: 'gwResColor', author: 'gwResAuthor', thumb: 'gwResThumb', image: 'gwResImage', footer: 'gwResFooter', order: 'gwResOrder', fields: RES, def: '#248046' }),
+      h('div', { style: 'margin:6px 0 14px' }, btn(`🎁 ${val('gwClaimBtn')}`, 'g'), ' ', btn(`🔔 ${val('gwRerollBtn')}`)),
+      h('p', { class: 'hint' }, '5) Şartı yapmayan kazanan "Ödülünü Al"a basınca'), h('div', { class: 'dc-eph' }, f('gwReqFailed'))));
   };
   draw();
-  const pane = textsPane('gwmessages', 'Çekiliş mesajları', 'Çekilişin Discord\'daki bütün yazıları: çalışan çekiliş, sonuç mesajı, butonlar, şart satırları, "kazanmadın" cevabı ve ödül talebi yazıları. {süslü} kısımlar otomatik doldurulur. Kutuyu boş bırakırsan varsayılan yazı kullanılır.', defs, cfg.messages);
+  const pane = textsPane('gwmessages', 'Çekiliş mesajları', 'Çekiliş embed\'lerinin HER parçası burada: başlık, açıklama, renk, üst yazı, resimler, alt yazı, alan adları, alan değerleri, alanların sırası (yazmadığın alan gizlenir) ve 2\'şer ek alan. Her yere {prize} {winners} {winnerCount} {entries} {participants} {host} {id} {ends} {endsFull} {started} {role} {channel} {requirements} {brand} yazabilirsin; kullanıcıya giden cevaplarda {user} (basan kişi) da çalışır. Renk #RRGGBB, resim linki https://… olmalı. Alanlar: prize, winners, ends, host, entries, role, reqs, status, x1, x2.', defs, cfg.messages);
   pane.addEventListener('input', draw);
   pane.addEventListener('click', () => setTimeout(draw));
-  const card = h('div', { class: 'card' }, h('h2', {}, 'Önizleme'), h('p', { class: 'hint', style: 'margin-bottom:10px' }, 'Yazıları düzenledikçe aşağıdaki örnek güncellenir (örnek şart değerleriyle).'), prev);
+  const card = h('div', { class: 'card' }, h('h2', {}, 'Önizleme'), h('p', { class: 'hint', style: 'margin-bottom:10px' }, 'Yazıları düzenledikçe aşağıdaki örnekler güncellenir (örnek değerlerle). Sonuç mesajında "Şart durumu" alanı, şartlı çekilişlerde her kazananın şartları yapıp yapmadığını gösterir.'), prev);
   pane.insertBefore(card, pane.firstChild);
   return pane;
 }

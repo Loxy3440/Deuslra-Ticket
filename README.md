@@ -102,6 +102,14 @@ Gerekli ayarlar (sadece ilgili şartı kullanacaksan):
 - Rol, tag, ses ve mesaj şartları için ek ayar gerekmez (ses ve mesaj için normal intent'ler kodda otomatik açılır).
 - Bot yeniden başlarsa, o an seste olan kişilerin süresi yeniden başlatma anından itibaren sayılır.
 
+### Çekiliş embed'lerini düzenleme
+
+Panel > Çekiliş > **Çekiliş mesajları**: çalışan, biten, iptal ve sonuç embed'lerinin her parçası (başlık, açıklama, renk `#RRGGBB`, üst yazı, küçük / büyük resim linki, alt yazı, her alanın adı ve değeri, 2 ek alan) düzenlenir. Alanların sırası `gwRunOrder` / `gwResOrder` kutusundaki listeyle belirlenir (`prize, winners, ends, host, entries, role, reqs, status, x1, x2`); listede olmayan alan gizlenir.
+
+Her yerde kullanılabilen değişkenler: `{prize} {winners} {winnerCount} {entries} {participants} {host} {id} {ends} {endsFull} {started} {role} {channel} {requirements} {brand}`. Kullanıcıya giden cevaplarda (katıldın, şartlarım, ödül alma...) `{user}` da çalışır.
+
+Sonuç / tekrar çek mesajının altında şartlı çekilişlerde **Şart durumu** alanı çıkar: her kazananın şartları yapıp yapmadığı ve eksikleri yazar. Panelden bir kazanan düşürülür / geri alınırsa eski sonuç mesajları da güncellenir.
+
 ## Komutlar
 
 | Komut | Ne yapar | Kim kullanır |

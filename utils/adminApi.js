@@ -221,7 +221,7 @@ const handlers = {
   },
   'POST giveaways/detail': async (client, body) => { const d = gw.detail({ client, id: String(body.id || '') }); if (!d) throw new ApiError(404, 'Çekiliş bulunamadı.'); return d; },
   'POST giveaways/check': async (client, body) => { const r = await gw.checkUser({ client, config: readConfig(), id: String(body.id || ''), userId: String(body.userId || '').replace(/\D/g, '') }); if (r.error) throw new ApiError(400, r.error); return r; },
-  'POST giveaways/override': async (client, body) => { const r = gw.override({ id: String(body.id || ''), userId: String(body.userId || ''), ok: Boolean(body.ok), reason: body.reason }); if (r.error) throw new ApiError(400, r.error); return { ok: true, message: body.ok ? 'Kazanan geri alındı.' : 'Kazanan düşürüldü. Tekrar çek yapınca yerine yeni kazanan seçilir.' }; },
+  'POST giveaways/override': async (client, body) => { const r = await gw.override({ client, config: readConfig(), id: String(body.id || ''), userId: String(body.userId || ''), ok: Boolean(body.ok), reason: body.reason }); if (r.error) throw new ApiError(400, r.error); return { ok: true, message: body.ok ? 'Kazanan geri alındı.' : 'Kazanan düşürüldü. Tekrar çek yapınca yerine yeni kazanan seçilir.' }; },
   // Kurulum kontrolü: çekilişin çalışması için gerekenler
   'GET giveaways/setup': async client => {
     const cfg = readConfig(); const guild = client.guilds.cache.get(getGuildId(cfg)) || client.guilds.cache.first();
