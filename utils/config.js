@@ -241,6 +241,7 @@ function normalizeConfig(input) {
   });
 
   const g = c.giveaways && typeof c.giveaways === 'object' ? c.giveaways : {};
+  const gs = g.site && typeof g.site === 'object' ? g.site : {};
   const used = new Set();
   const rawButtons = Array.isArray(c.buttons) ? [...c.buttons] : [];
   // Çekiliş sistemi açıksa ödül talepleri için gizli bir "Çekiliş Ödülü" ticket kategorisi hazır bulunur
@@ -293,6 +294,12 @@ function normalizeConfig(input) {
       claimHours: clampInt(g.claimHours, 0, 720, 72),
       showOnSite: bool(g.showOnSite, true),
       showWinnersOnSite: bool(g.showWinnersOnSite, true),
+      hostId: cleanId(g.hostId), // varsayılan düzenleyen (kullanıcı ID); boşsa çekilişi başlatan kişi / bot
+      site: { // sitedeki çekiliş bölümü seçenekleri
+        host: bool(gs.host, true), requirements: bool(gs.requirements, true), entries: bool(gs.entries, true), channel: bool(gs.channel, true),
+        countdown: bool(gs.countdown, true), filters: bool(gs.filters, true), howTo: bool(gs.howTo, true), showCancelled: bool(gs.showCancelled, false),
+        maxRunning: clampInt(gs.maxRunning, 1, 30, 10), maxEnded: clampInt(gs.maxEnded, 1, 50, 8), layout: ['cards', 'list'].includes(gs.layout) ? gs.layout : 'cards',
+      },
     },
     brandName: str(c.brandName, 40) || d.brandName,
     guildId: cleanId(c.guildId),

@@ -110,6 +110,12 @@ Her yerde kullanılabilen değişkenler: `{prize} {winners} {winnerCount} {entri
 
 Sonuç / tekrar çek mesajının altında şartlı çekilişlerde **Şart durumu** alanı çıkar: her kazananın şartları yapıp yapmadığı ve eksikleri yazar. Panelden bir kazanan düşürülür / geri alınırsa eski sonuç mesajları da güncellenir.
 
+### Düzenleyen, Discord butonları ve site
+
+- **Düzenleyen (ID ile):** Panel > Çekiliş > Ayarlar'da *Varsayılan düzenleyen*, çekiliş başlatırken *Düzenleyen (kullanıcı ID)* alanı, slash komutta `duzenleyen:` seçeneği, yazıyla `| duzenleyen=ID`. Çalışan / biten çekilişte Ayrıntı penceresinden de değiştirilir; Discord mesajları güncellenir. Öncelik: çekilişe yazılan ID > varsayılan düzenleyen > çekilişi başlatan kişi / bot.
+- **Discord butonları:** çalışan çekilişte *Katıl*, *Şartlarım*, *Detaylar*, *Katılımcılar*; sonuç mesajında *Ödülünü Al*, *Tekrar Çek*, *Detaylar*. *Detaylar* sadece basan kişiye çekilişin her şeyini ve kendi durumunu (katıldın mı, şartlarda neredesin, kazandıysan geçerli mi) gösterir; *Yenile* ve çekiliş mesajına giden link butonu vardır. *Katılımcılar* sayfalı listedir (🏆 = kazanan). Tüm yazılar Çekiliş mesajları sekmesinden düzenlenir.
+- **Site:** sekmeler (Devam edenler / Biten / Tümü), arama, sıralama, canlı geri sayım, ayrıntı penceresi (düzenleyen, kanal, şartlar, kazananlar, "Nasıl katılırım?"). Neyin görüneceği Panel > Çekiliş > Ayarlar > *Site çekiliş bölümü seçenekleri*, yazılar Site yazıları sekmesinden düzenlenir. Sitede kullanıcı ID'si ve Discord linki gösterilmez.
+
 ## Komutlar
 
 | Komut | Ne yapar | Kim kullanır |

@@ -120,7 +120,7 @@ function gwRunningCard(it) {
 /* ---------- 🎉 Çekiliş başlat ---------- */
 function gwStartPane() {
   const g = cfg.giveaways;
-  const f = { channelId: g.channelId || '', duration: '1h', winners: 1, prize: '' };
+  const f = { channelId: g.channelId || '', duration: '1h', winners: 1, prize: '', hostId: '' };
   const req = { roleIds: [], serverTag: false, statusText: '', voiceMinutes: 0, messages: 0, invites: 0 };
   const cmdEl = h('code', { class: 'cmd' });
   const sumEl = h('div', { class: 'chips' });
@@ -131,6 +131,7 @@ function gwStartPane() {
     if (req.voiceMinutes) p.push(`ses=${req.voiceMinutes}`);
     if (req.serverTag) p.push('tag');
     req.roleIds.forEach(id => p.push(`rol=<@&${id}>`));
+    if (/^\d{5,25}$/.test(f.hostId.trim())) p.push(`duzenleyen=${f.hostId.trim()}`);
     if (req.statusText) p.push(`durum=${req.statusText.replace(/\s+/g, '')}`);
     cmdEl.textContent = `.gstart ${f.duration || '1h'} ${f.winners || 1} ${f.prize || 'Ödül'}${p.length ? ` | ${p.join(' ')}` : ''}`;
     const l = reqList(req);
@@ -141,6 +142,8 @@ function gwStartPane() {
   dur.addEventListener('input', () => { f.duration = dur.value; upd(); });
   const win = h('input', { type: 'number', min: 1, max: 20 }); win.value = f.winners; win.addEventListener('input', () => { f.winners = Number(win.value); upd(); });
   const prize = h('input', { type: 'text', maxLength: 200, placeholder: 'Örn: 1M OwO Cash' }); prize.addEventListener('input', () => { f.prize = prize.value; upd(); });
+  const hostIn = h('input', { type: 'text', inputmode: 'numeric', maxLength: 25, placeholder: g.hostId ? `Varsayılan: ${g.hostId}` : 'Kullanıcı ID (boşsa bot)' });
+  hostIn.addEventListener('input', () => { f.hostId = hostIn.value.replace(/\D/g, ''); upd(); });
   const chan = picker(f, 'channelId', chanItems(), '— Varsayılan kanal —');
   chan.addEventListener('change', () => { f.channelId = chan.value; });
   const durChips = h('div', { class: 'chips' }, [['30 dk', '30m'], ['1 saat', '1h'], ['6 saat', '6h'], ['1 gün', '1d'], ['3 gün', '3d'], ['7 gün', '7d']].map(([l, v]) =>
@@ -165,7 +168,8 @@ function gwStartPane() {
     h('div', { class: 'card' }, h('h2', {}, 'Çekiliş başlat'),
       !meta.connected && h('div', { class: 'banner bad' }, 'Bot bağlı değil.'),
       h('div', { class: 'grid2' }, field('Kanal', chan, 'Boş bırakırsan Ayarlar sekmesindeki varsayılan kanal kullanılır.'), field('Ödül', prize),
-        field('Süre', dur, 'Örn: 30m, 2h, 1d, 1h30m (en az 10 sn, en fazla 30 gün)'), field('Kazanan sayısı', win, 'En fazla 20.')),
+        field('Süre', dur, 'Örn: 30m, 2h, 1d, 1h30m (en az 10 sn, en fazla 30 gün)'), field('Kazanan sayısı', win, 'En fazla 20.'),
+        field('Düzenleyen (kullanıcı ID)', hostIn, 'Çekiliş mesajında "Düzenleyen" olarak bu kişi görünür. Discord\'da kullanıcıya sağ tıkla > ID\'yi kopyala. Boşsa Ayarlar\'daki varsayılan düzenleyen, o da boşsa bot görünür.')),
       durChips),
     h('div', { class: 'card' }, h('h2', {}, 'Şartlar (isteğe bağlı)'),
       h('p', { class: 'hint', style: 'margin-bottom:10px' }, 'Herkes katılabilir; çekiliş bitince kazananlar kontrol edilir. Şartı yapmayan kazanan, sonuç mesajında yine kazanan görünür ama "Ödülünü Al"a basınca "kazanmadın" der; yetkili "Tekrar çek" yapınca yerine yeni kazanan seçilir. Önceki geçerli kazananlar kendi mesajındaki butonla ödülünü almaya devam eder. Kullanıcılar çekiliş mesajındaki "Şartlarım" butonuyla durumlarına bakabilir.'),
@@ -175,7 +179,7 @@ function gwStartPane() {
     h('div', { class: 'card' }, h('h2', {}, 'Özet'), sumEl,
       h('p', { class: 'hint', style: 'margin:12px 0 6px' }, 'Aynısını Discord\'da yazıyla başlatmak istersen:'), cmdEl,
       h('div', { style: 'margin-top:14px' }, h('button', { class: 'btn accent', onclick: e => act(e.target, async () => {
-        const r = await api('admin/giveaways/start', { channelId: f.channelId, duration: f.duration, winners: f.winners, prize: f.prize, requirements: req });
+        const r = await api('admin/giveaways/start', { channelId: f.channelId, duration: f.duration, winners: f.winners, prize: f.prize, hostId: f.hostId, requirements: req });
         await gwReload(); return r;
       }) }, '🎉 Çekilişi başlat'))));
 }
@@ -253,6 +257,9 @@ async function gwDetail(id) {
         d.status === 'running' && h('button', { class: 'btn sm', onclick: e => reload(() => api('admin/giveaways/end', { id }))(e.target) }, 'Şimdi bitir'),
         d.status === 'running' && h('button', { class: 'btn ghost sm', onclick: e => { if (confirm('Çekiliş iptal edilsin mi?')) reload(() => api('admin/giveaways/cancel', { id }))(e.target); } }, 'İptal'),
         d.status === 'ended' && h('button', { class: 'btn sm', onclick: e => reload(() => api('admin/giveaways/reroll', { id }))(e.target) }, 'Tekrar çek')),
+      h('div', { class: 'card', style: 'margin:0 0 14px;padding:12px' }, h('b', {}, 'Düzenleyeni değiştir'), h('p', { class: 'hint', style: 'margin:4px 0 8px' }, 'Kullanıcı ID yaz; çekiliş ve sonuç mesajlarındaki "Düzenleyen" yeni kişiyle güncellenir.'),
+        (() => { const i = h('input', { type: 'text', inputmode: 'numeric', placeholder: `Şu an: ${d.hostTag || d.hostId || '—'} (${d.hostId || ''})` });
+          return h('div', { style: 'display:flex;gap:8px' }, i, h('button', { class: 'btn sm', onclick: e => reload(() => api('admin/giveaways/host', { id, hostId: i.value }))(e.target) }, 'Kaydet')); })()),
       h('h3', {}, 'Şartlar'),
       reqList(need).length ? h('div', { class: 'chips' }, reqList(need).map(x => h('span', { class: 'chip' }, x))) : h('p', { class: 'hint' }, 'Bu çekilişte şart yok.'),
       d.winnersDetail.length ? h('div', {}, h('h3', { style: 'margin-top:16px' }, 'Kazananlar'),
@@ -282,10 +289,20 @@ function gwSettingsPane() {
       h('div', { class: 'grid2' },
         field('Ödül talepleri hangi kategoride açılsın?', catSel, 'Destek bölümünün "Kategoriler & formlar" sekmesinden bu kategoriye özel roller / Discord kategorisi / form atayabilirsin. Gizli kategori panelde (buton/liste) görünmez.'),
         field('Varsayılan çekiliş kanalı', picker(g, 'channelId', chanItems()), 'Çekiliş başlatırken kanal seçmezsen burası kullanılır.'),
-        field('Ödül alma süresi (saat)', num(g, 'claimHours', 0, 720), '0 = süresiz. Kazanan bu süreden sonra "Ödülünü Al"a basarsa reddedilir.'))),
+        field('Ödül alma süresi (saat)', num(g, 'claimHours', 0, 720), '0 = süresiz. Kazanan bu süreden sonra "Ödülünü Al"a basarsa reddedilir.'),
+        field('Varsayılan düzenleyen (kullanıcı ID)', (() => { const i = h('input', { type: 'text', inputmode: 'numeric', maxLength: 25, placeholder: 'Boşsa çekilişi başlatan kişi / bot' }); i.value = g.hostId || ''; i.addEventListener('input', () => { g.hostId = i.value.replace(/\D/g, ''); dirty(); }); return i; })(), 'Çekiliş mesajlarında "Düzenleyen" olarak görünür. Her çekilişte ayrıca başka ID yazarak değiştirebilirsin.'))),
     h('div', { class: 'card' }, h('h2', {}, 'Sitede görünüm'),
       check(g, 'showOnSite', 'Sitede çalışan ve biten çekilişleri göster'),
-      check(g, 'showWinnersOnSite', 'Sitede kazanan kullanıcı adlarını da göster (şartı yapmayanlar gizlenir)')));
+      check(g, 'showWinnersOnSite', 'Sitede kazanan kullanıcı adlarını da göster (şartı yapmayanlar gizlenir)')),
+    h('div', { class: 'card' }, h('h2', {}, 'Site çekiliş bölümü seçenekleri'),
+      h('p', { class: 'hint', style: 'margin-bottom:10px' }, 'Sitedeki Çekilişler bölümünde nelerin görüneceğini seç. Başlıklar ve etiketler "Site yazıları" sekmesinden düzenlenir.'),
+      h('div', { class: 'grid2' },
+        check(g.site, 'filters', 'Sekmeler, arama ve sıralama göster'), check(g.site, 'countdown', 'Geri sayım ve ilerleme çubuğu göster'),
+        check(g.site, 'entries', 'Katılımcı sayısını göster'), check(g.site, 'host', 'Düzenleyeni göster'),
+        check(g.site, 'channel', 'Kanal adını göster'), check(g.site, 'requirements', 'Katılım şartlarını göster'),
+        check(g.site, 'howTo', '"Nasıl katılırım?" kutusunu göster'), check(g.site, 'showCancelled', 'İptal edilen çekilişleri de göster (Tümü sekmesinde)'),
+        field('Devam eden en fazla kaç çekiliş', num(g.site, 'maxRunning', 1, 30)), field('Biten en fazla kaç çekiliş', num(g.site, 'maxEnded', 1, 50)),
+        field('Görünüm', (() => { const sel = h('select', {}, [['cards', 'Kartlar (ızgara)'], ['list', 'Liste (tek sütun)']].map(([v, l]) => h('option', { value: v }, l))); sel.value = g.site.layout; sel.addEventListener('change', () => { g.site.layout = sel.value; dirty(); }); return sel; })()))));
 }
 
 /* ---------- 💬 Çekiliş mesajları (+ canlı önizleme) ---------- */
@@ -299,10 +316,12 @@ function gwMessagesPane() {
     const fill = (t, v) => String(t).replace(/\{(\w+)\}/g, (m, k) => (k.toLowerCase() in v ? v[k.toLowerCase()] : m));
     const v = { prize: '1M OwO Cash', winnercount: '2', winners: '• @ali\n• @veli', entries: '37', participants: '@ali @veli @ayse +34', host: '@yetkili', id: 'ab12cd', brand: cfg.brandName || 'Marka',
       ends: 'yarın 18:00', endsfull: '26 Kasım 18:00', started: '2 saat önce', role: '@VIP', channel: '#cekilis', requirements: rs.map(x => `• ${x}`).join('\n'), claimbtn: val('gwClaimBtn'), note: val('gwResultReqNote'), user: '@kullanıcı', missing: 'Davet (0/2)' };
+    Object.assign(v, { hostname: 'Loxy', state: val('gwStateRunning'), you: val('gwYouIn'), myrequirements: rs.map((x, i) => `${i % 2 ? '❌' : '✅'} ${x}`).join('\n'), claimhours: '72' });
     v.status = `${fill(val('gwStatusOk'), { ...v, user: '@ali' })}\n${fill(val('gwStatusFail'), { ...v, user: '@veli', missing: `${rs[4]} (0/2)` })}`;
     return { v, fill };
   };
   const BASE = { prize: ['gwFieldPrize', 'gwValPrize', 1], winners: ['gwFieldWinners', 'gwValWinners', 1], ends: ['gwFieldEnds', 'gwValEnds', 1], host: ['gwFieldHost', 'gwValHost', 1], entries: ['gwFieldEntries', 'gwValEntries', 1], role: ['gwFieldRole', 'gwValRole', 1], reqs: ['gwFieldReqs', 'gwValReqs', 0], status: ['gwFieldStatus', 'gwValStatus', 0] };
+  const INFO = { ...BASE, state: ['gwFieldState', 'gwValState', 1], started: ['gwFieldStarted', 'gwValStarted', 1], you: ['gwFieldYou', 'gwValYou', 1], myreqs: ['gwFieldMyReqs', 'gwValMyReqs', 0], claim: ['gwFieldClaim', 'gwValClaim', 1], x1: ['gwInfoX1Name', 'gwInfoX1Val', 0], x2: ['gwInfoX2Name', 'gwInfoX2Val', 0] };
   const RUN = { ...BASE, x1: ['gwRunX1Name', 'gwRunX1Val', 0], x2: ['gwRunX2Name', 'gwRunX2Val', 0] };
   const RES = { ...BASE, reqs: ['gwFieldReqs', 'gwValReqsRes', 0], x1: ['gwResX1Name', 'gwResX1Val', 0], x2: ['gwResX2Name', 'gwResX2Val', 0] };
   const prev = h('div', {});
@@ -330,16 +349,18 @@ function gwMessagesPane() {
     const run = { title: 'gwRunTitle', descKey: 'gwRunDesc', color: 'gwRunColor', author: 'gwRunAuthor', thumb: 'gwRunThumb', image: 'gwRunImage', footer: 'gwRunFooter', order: 'gwRunOrder', fields: RUN, def: '#5865f2' };
     prev.replaceChildren(h('div', { class: 'dc' },
       h('p', { class: 'hint' }, '1) Çalışan çekiliş'), emb(run),
-      h('div', { style: 'margin:6px 0 14px' }, btn(`🎉 ${val('gwJoinBtn')}`, 'p'), ' ', btn(`📋 ${val('gwStatusBtn')}`)),
+      h('div', { style: 'margin:6px 0 14px' }, btn(`🎉 ${val('gwJoinBtn')}`, 'p'), ' ', btn(`📋 ${val('gwStatusBtn')}`), ' ', btn(`🔎 ${val('gwInfoBtn')}`), ' ', btn(`👥 ${val('gwPeopleBtn')}`)),
+      h('p', { class: 'hint' }, '1b) "Detaylar" butonuna basınca (sadece basan kişi görür)'), emb({ ...run, title: 'gwInfoTitle', descKey: 'gwInfoDesc', color: 'gwInfoColor', footer: 'gwInfoFooter', order: 'gwInfoOrder', fields: INFO, def: '#5865f2' }),
+      h('div', { style: 'margin:6px 0 14px' }, btn(`🔄 ${val('gwRefreshBtn')}`), ' ', btn(`👥 ${val('gwPeopleBtn')}`), ' ', btn(`🔗 ${val('gwJumpBtn')}`)),
       h('p', { class: 'hint' }, '2) Biten çekiliş (ilk mesaj)'), emb({ ...run, title: 'gwEndTitle', descKey: 'gwEndDesc', color: 'gwEndColor', def: '#f0b232' }),
       h('p', { class: 'hint', style: 'margin-top:14px' }, '3) İptal edilen çekiliş'), emb({ ...run, title: 'gwCancelTitle', descKey: 'gwCancelDesc', color: 'gwCancelColor', def: '#da373c' }),
       h('p', { class: 'hint', style: 'margin-top:14px' }, '4) Sonuç / tekrar çek mesajı (altta şart durumu)'),
       emb({ title: 'gwResTitle', descKey: 'gwResBody', color: 'gwResColor', author: 'gwResAuthor', thumb: 'gwResThumb', image: 'gwResImage', footer: 'gwResFooter', order: 'gwResOrder', fields: RES, def: '#248046' }),
-      h('div', { style: 'margin:6px 0 14px' }, btn(`🎁 ${val('gwClaimBtn')}`, 'g'), ' ', btn(`🔔 ${val('gwRerollBtn')}`)),
+      h('div', { style: 'margin:6px 0 14px' }, btn(`🎁 ${val('gwClaimBtn')}`, 'g'), ' ', btn(`🔔 ${val('gwRerollBtn')}`), ' ', btn(`🔎 ${val('gwInfoBtn')}`)),
       h('p', { class: 'hint' }, '5) Şartı yapmayan kazanan "Ödülünü Al"a basınca'), h('div', { class: 'dc-eph' }, f('gwReqFailed'))));
   };
   draw();
-  const pane = textsPane('gwmessages', 'Çekiliş mesajları', 'Çekiliş embed\'lerinin HER parçası burada: başlık, açıklama, renk, üst yazı, resimler, alt yazı, alan adları, alan değerleri, alanların sırası (yazmadığın alan gizlenir) ve 2\'şer ek alan. Her yere {prize} {winners} {winnerCount} {entries} {participants} {host} {id} {ends} {endsFull} {started} {role} {channel} {requirements} {brand} yazabilirsin; kullanıcıya giden cevaplarda {user} (basan kişi) da çalışır. Renk #RRGGBB, resim linki https://… olmalı. Alanlar: prize, winners, ends, host, entries, role, reqs, status, x1, x2.', defs, cfg.messages);
+  const pane = textsPane('gwmessages', 'Çekiliş mesajları', 'Çekiliş embed\'lerinin HER parçası burada: başlık, açıklama, renk, üst yazı, resimler, alt yazı, alan adları, alan değerleri, alanların sırası (yazmadığın alan gizlenir) ve 2\'şer ek alan. Her yere {prize} {winners} {winnerCount} {entries} {participants} {host} {id} {ends} {endsFull} {started} {role} {channel} {requirements} {brand} yazabilirsin; kullanıcıya giden cevaplarda {user} (basan kişi) da çalışır. Renk #RRGGBB, resim linki https://… olmalı. Alanlar: prize, winners, ends, host, entries, role, reqs, status, x1, x2 (Detaylar embedinde ayrıca state, started, you, myreqs, claim). Ayrıca {hostName} {state} {you} {myRequirements} {claimHours} Detaylar embedinde çalışır.', defs, cfg.messages);
   pane.addEventListener('input', draw);
   pane.addEventListener('click', () => setTimeout(draw));
   const card = h('div', { class: 'card' }, h('h2', {}, 'Önizleme'), h('p', { class: 'hint', style: 'margin-bottom:10px' }, 'Yazıları düzenledikçe aşağıdaki örnekler güncellenir (örnek değerlerle). Sonuç mesajında "Şart durumu" alanı, şartlı çekilişlerde her kazananın şartları yapıp yapmadığını gösterir.'), prev);
@@ -390,7 +411,9 @@ function gwGuidePane() {
         h('li', {}, 'Süre dolunca bot kazananları çeker ve her kazananın şartlarını kontrol eder. Sonuç mesajında kazananlar yine görünür.'),
         h('li', {}, 'Kazanan "Ödülünü Al"a basınca şartı yapmışsa ödül talebi (ticket) açılır; yapmamışsa "kazanmadın" cevabı ve eksik şartlar gelir.'),
         h('li', {}, 'Yetkili "Tekrar çek" yapınca daha önce çekilmemiş katılımcılardan, düşen kazanan sayısı kadar yeni kazanan seçilir. Önceki geçerli kazananlar kendi sonuç mesajındaki butonla ödülünü almaya devam eder.'),
-        h('li', {}, 'Bir kazananı elle düşürmek ya da geri almak için çekilişin Ayrıntı penceresini kullan.'))),
+        h('li', {}, 'Bir kazananı elle düşürmek ya da geri almak, düzenleyeni ID ile değiştirmek için çekilişin Ayrıntı penceresini kullan.'),
+        h('li', {}, 'Discord mesajındaki butonlar: Katıl, Şartlarım, Detaylar (çekilişin her şeyi + senin durumun), Katılımcılar (sayfalı liste). Sonuç mesajında Ödülünü Al, Tekrar Çek ve Detaylar var.'),
+        h('li', {}, 'Düzenleyen: çekilişi başlatırken ID yazabilirsin (panel, /cekilis baslat duzenleyen:, ya da .gstart ... | duzenleyen=ID).'))),
     h('div', { class: 'card' }, h('h2', {}, 'Şartlar'),
       tbl(['Şart', 'Yazıyla', 'Ne zaman / nasıl sayılır', 'Gerekli ayar'], [
         ['🎭 Rol', 'rol=@rol', 'Çekiliş bitince kazananın rolü olmalı', '—'],

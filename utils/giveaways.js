@@ -80,7 +80,13 @@ function parseStart(rest, allowFlags = true) {
   const raw = String(rest || '');
   const bar = allowFlags ? raw.indexOf('|') : -1;
   const head = bar >= 0 ? raw.slice(0, bar) : raw;
-  const req = bar >= 0 ? parseReqFlags(raw.slice(bar + 1)) : emptyReq();
+  let host = '';
+  const flagText = bar >= 0 ? raw.slice(bar + 1).split(/\s+/).filter(t => {
+    const m = /^(?:duzenleyen|düzenleyen|host)=(.*)$/i.exec(t);
+    if (m) { host = (m[1].match(/\d{5,25}/) || [])[0] || ''; return false; }
+    return true;
+  }).join(' ') : '';
+  const req = bar >= 0 ? parseReqFlags(flagText) : emptyReq();
   const parts = head.trim().split(/\s+/).filter(Boolean);
   if (parts.length < 2) return null;
   const ms = parseDuration(parts[0]);
@@ -88,7 +94,7 @@ function parseStart(rest, allowFlags = true) {
   if (parts.length > 2 && /^\d{1,2}$/.test(parts[1])) { winners = Number(parts[1]); from = 2; }
   const prize = parts.slice(from).join(' ').slice(0, 200);
   if (!prize) return null;
-  return { ms, winners: Math.min(Math.max(winners, 1), 20), prize, req };
+  return { ms, winners: Math.min(Math.max(winners, 1), 20), prize, req, host };
 }
 
 const mentionList = ids => ids.map(id => `• <@${id}>`).join('\n');
@@ -270,7 +276,7 @@ function tplVars(config, g, extra = {}) {
     ends: `<t:${unix(g.endsAt)}:R>`, endsfull: `<t:${unix(g.endsAt)}:f>`, started: g.createdAt ? `<t:${unix(g.createdAt)}:R>` : '',
     role: g.roleId ? `<@&${g.roleId}>` : '', channel: `<#${g.channelId}>`,
     requirements: hasReq(g) ? reqItems(config, g).map(x => `• ${x.label}`).join('\n') : '',
-    claimbtn: m('gwClaimBtn'), note: m('gwResultReqNote'),
+    claimbtn: m('gwClaimBtn'), note: m('gwResultReqNote'), hostname: g.hostTag || '', state: '', you: '', myrequirements: '', claimhours: String(config.giveaways?.claimHours || '∞'),
     status: hasReq(g) ? ids.map(id => {
       const c = g.checks?.[id];
       return c && c.ok === false ? baseMsg(config, 'gwStatusFail', { user: `<@${id}>`, missing: c.failed.join(', ') }) : baseMsg(config, 'gwStatusOk', { user: `<@${id}>` });
@@ -322,15 +328,21 @@ const resultEmbed = (config, g, ids) => templEmbed(config, g, tplVars(config, g,
   titleKey: 'gwResTitle', descKey: 'gwResBody', colorKey: 'gwResColor', authorKey: 'gwResAuthor', thumbKey: 'gwResThumb', imageKey: 'gwResImage', footerKey: 'gwResFooter', orderKey: 'gwResOrder', fields: RES_FIELDS, defColor: config.colors.success });
 
 const joinRow = (config, disabled = false, g = null) => {
+  const m = k => baseMsg(config, k).slice(0, 80);
   const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('gw-join').setLabel(baseMsg(config, 'gwJoinBtn').slice(0, 80)).setEmoji('🎉').setStyle(ButtonStyle.Primary).setDisabled(disabled),
+    new ButtonBuilder().setCustomId('gw-join').setLabel(m('gwJoinBtn')).setEmoji('🎉').setStyle(ButtonStyle.Primary).setDisabled(disabled),
   );
-  if (g && hasReq(g)) row.addComponents(new ButtonBuilder().setCustomId('gw-status').setLabel(baseMsg(config, 'gwStatusBtn').slice(0, 80)).setEmoji('📋').setStyle(ButtonStyle.Secondary).setDisabled(disabled));
+  if (g && hasReq(g)) row.addComponents(new ButtonBuilder().setCustomId('gw-status').setLabel(m('gwStatusBtn')).setEmoji('📋').setStyle(ButtonStyle.Secondary).setDisabled(disabled));
+  if (g) row.addComponents(
+    new ButtonBuilder().setCustomId(`gw-info:${g.id || ''}`).setLabel(m('gwInfoBtn')).setEmoji('🔎').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`gw-people:${g.id || ''}:0`).setLabel(m('gwPeopleBtn')).setEmoji('👥').setStyle(ButtonStyle.Secondary),
+  );
   return [row];
 };
 const resultRow = (config, id) => [new ActionRowBuilder().addComponents(
   new ButtonBuilder().setCustomId(`gw-claim:${id}`).setLabel(baseMsg(config, 'gwClaimBtn').slice(0, 80)).setEmoji('🎁').setStyle(ButtonStyle.Success),
   new ButtonBuilder().setCustomId(`gw-reroll:${id}`).setLabel(baseMsg(config, 'gwRerollBtn').slice(0, 80)).setEmoji('🔔').setStyle(ButtonStyle.Secondary),
+  new ButtonBuilder().setCustomId(`gw-info:${id}`).setLabel(baseMsg(config, 'gwInfoBtn').slice(0, 80)).setEmoji('🔎').setStyle(ButtonStyle.Secondary),
 )];
 
 async function fetchChannel(client, id) { return client.channels.cache.get(id) || (await client.channels.fetch(id).catch(() => null)); }
@@ -347,12 +359,14 @@ async function start({ client, config, channel, hostId, ms, winners, prize, role
     if (!channel.guild?.members?.me?.permissions?.has(PermissionFlagsBits.ManageGuild)) return { error: baseMsg(config, 'gwNeedManageGuild') };
     await cacheInvites(channel.guild); // davet sayımı için başlangıç anındaki kullanım sayıları
   }
-  const g = { id: '', channelId: channel.id, guildId: channel.guild?.id || '', prize, winnersCount: winners, hostId, hostTag: await tagOf(client, hostId), roleId: roleId || '', endsAt: Date.now() + ms, createdAt: Date.now(), status: 'running', entries: [], winners: [], winnerTags: {}, wonAt: {}, claims: {}, requirements: req, progress: {}, checks: {}, replaced: {} };
+  const hostUser = await client.users.fetch(hostId).catch(() => null);
+  if (!hostUser) return { error: baseMsg(config, 'gwBadHost') };
+  const g = { id: '', channelId: channel.id, guildId: channel.guild?.id || '', prize, winnersCount: winners, hostId: hostUser.id, hostTag: hostUser.username, roleId: roleId || '', endsAt: Date.now() + ms, createdAt: Date.now(), status: 'running', entries: [], winners: [], winnerTags: {}, wonAt: {}, claims: {}, requirements: req, progress: {}, checks: {}, replaced: {} };
   const sent = await channel.send({ embeds: [runningEmbed(config, g)], components: joinRow(config, false, g) }).catch(err => ({ err }));
   if (!sent || sent.err) return { error: `Çekiliş mesajı gönderilemedi: ${sent?.err?.message || 'bilinmeyen hata'}` };
   g.id = sent.id;
   data().items[g.id] = g; save();
-  await sent.edit({ embeds: [runningEmbed(config, g)] }).catch(() => null); // ID'yi alt yazıya işle
+  await sent.edit({ embeds: [runningEmbed(config, g)], components: joinRow(config, false, g) }).catch(() => null); // ID'yi alt yazıya ve butonlara işle
   g.url = sent.url; save();
   return { giveaway: g, url: sent.url };
 }
@@ -371,6 +385,87 @@ async function handleJoin(interaction, config) {
   clearTimeout(editTimers.get(g.id)); // çok katılım olunca mesajı her seferinde değil, 3 sn sonra bir kez güncelle
   editTimers.set(g.id, setTimeout(() => { editTimers.delete(g.id); interaction.message.edit({ embeds: [runningEmbed(config, g)] }).catch(() => null); }, 3000));
   return note;
+}
+
+// ---------- Ayrıntı (Detaylar) butonu ----------
+const INFO_FIELDS = {
+  ...BASE_FIELDS,
+  state: ['gwFieldState', 'gwValState', true], started: ['gwFieldStarted', 'gwValStarted', true], you: ['gwFieldYou', 'gwValYou', true],
+  myreqs: ['gwFieldMyReqs', 'gwValMyReqs', false], claim: ['gwFieldClaim', 'gwValClaim', true],
+  x1: ['gwInfoX1Name', 'gwInfoX1Val', false], x2: ['gwInfoX2Name', 'gwInfoX2Val', false],
+};
+const infoWait = new Map();
+async function handleInfo(interaction, config, rest) {
+  const [gidPart, flag] = String(rest || '').split(':');
+  const g = get(gidPart || interaction.message.id) || get(interaction.message.id);
+  const mu = (k, v) => baseMsg(config, k, { user: `<@${interaction.user.id}>`, ...v });
+  if (!g) return replyPrivate(interaction, mu('gwNotRunning'));
+  const uid = interaction.user.id;
+  if (Date.now() - (infoWait.get(uid) || 0) < 3000) return replyPrivate(interaction, mu('gwStatusWait'));
+  infoWait.set(uid, Date.now());
+  if (infoWait.size > 2000) infoWait.clear();
+  if (flag === 'r') await interaction.deferUpdate().catch(() => null); else await interaction.deferReply({ ephemeral: true }).catch(() => null);
+
+  ensure(g);
+  const check = g.checks[uid];
+  let you = g.entries.includes(uid) ? baseMsg(config, 'gwYouIn') : baseMsg(config, 'gwYouOut');
+  if (g.status === 'ended' && g.winners.includes(uid)) you = check?.ok === false ? baseMsg(config, 'gwYouDisq') : baseMsg(config, 'gwYouWon');
+  let myreq = '';
+  if (hasReq(g)) {
+    const res = await evaluate({ client: interaction.client, config, g, userId: uid });
+    myreq = res.results.map(x => `${x.ok ? '✅' : '❌'} ${x.label}${x.need ? ` (${x.cur}/${x.need})` : ''}`).join('\n');
+  }
+  const vars = tplVars(config, g, {
+    state: baseMsg(config, g.status === 'running' ? 'gwStateRunning' : g.status === 'ended' ? 'gwStateEnded' : 'gwStateCancelled'),
+    you, myrequirements: myreq, claimhours: String(config.giveaways.claimHours || '∞'), hostname: g.hostTag || '',
+  });
+  const embed = templEmbed(config, g, vars, { titleKey: 'gwInfoTitle', descKey: 'gwInfoDesc', colorKey: 'gwInfoColor', footerKey: 'gwInfoFooter', orderKey: 'gwInfoOrder', fields: INFO_FIELDS, defColor: config.colors.main });
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`gw-info:${g.id}:r`).setLabel(baseMsg(config, 'gwRefreshBtn').slice(0, 80)).setEmoji('🔄').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(`gw-people:${g.id}:0`).setLabel(baseMsg(config, 'gwPeopleBtn').slice(0, 80)).setEmoji('👥').setStyle(ButtonStyle.Secondary),
+  );
+  if (g.url) row.addComponents(new ButtonBuilder().setLabel(baseMsg(config, 'gwJumpBtn').slice(0, 80)).setEmoji('🔗').setStyle(ButtonStyle.Link).setURL(g.url));
+  return interaction.editReply({ embeds: [embed], components: [row], content: '', allowedMentions: { parse: [] } });
+}
+
+// Katılımcı listesi: sayfalı (20 kişi), kazananların yanında 🏆
+const PEOPLE_PER_PAGE = 20;
+async function handlePeople(interaction, config, rest) {
+  const [gidPart, pageStr, nav] = String(rest || '').split(':');
+  const g = get(gidPart || interaction.message.id) || get(interaction.message.id);
+  if (!g) return replyPrivate(interaction, baseMsg(config, 'gwNotRunning', { user: `<@${interaction.user.id}>` }));
+  const pages = Math.max(1, Math.ceil(g.entries.length / PEOPLE_PER_PAGE));
+  const page = Math.min(Math.max(parseInt(pageStr, 10) || 0, 0), pages - 1);
+  if (nav === 'n') await interaction.deferUpdate().catch(() => null); else await interaction.deferReply({ ephemeral: true }).catch(() => null);
+  const vars = tplVars(config, g);
+  const slice = g.entries.slice(page * PEOPLE_PER_PAGE, (page + 1) * PEOPLE_PER_PAGE);
+  const e = new EmbedBuilder().setColor(config.colors.main).setTitle(baseMsg(config, 'gwPeopleTitle', vars).slice(0, 256))
+    .setDescription(slice.length ? slice.map((id, i) => `${page * PEOPLE_PER_PAGE + i + 1}. <@${id}>${g.winners.includes(id) ? ' 🏆' : ''}`).join('\n') : baseMsg(config, 'gwPeopleEmpty'))
+    .setFooter({ text: baseMsg(config, 'gwPeopleFooter', { page: String(page + 1), pages: String(pages) }).slice(0, 200) });
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`gw-people:${g.id}:${page - 1}:n`).setEmoji('◀️').setStyle(ButtonStyle.Secondary).setDisabled(page <= 0),
+    new ButtonBuilder().setCustomId(`gw-people:${g.id}:${page + 1}:n`).setEmoji('▶️').setStyle(ButtonStyle.Secondary).setDisabled(page >= pages - 1),
+  );
+  return interaction.editReply({ embeds: [e], components: pages > 1 ? [row] : [], content: '', allowedMentions: { parse: [] } });
+}
+
+// Panel / komut: çekilişin düzenleyenini ID ile değiştirir, Discord mesajlarını yeniler
+async function refreshMain({ client, config, g }) {
+  const ch = await fetchChannel(client, g.channelId);
+  const msg = await ch?.messages?.fetch?.(g.id).catch(() => null);
+  if (!msg) return;
+  const embed = g.status === 'running' ? runningEmbed(config, g) : g.status === 'ended' ? endedEmbed(config, g) : cancelledEmbed(config, g);
+  await msg.edit({ embeds: [embed] }).catch(() => null);
+}
+async function setHost({ client, config, id, hostId }) {
+  const g = get(id);
+  if (!g) return { error: baseMsg(config, 'gwNotRunning') };
+  const u = await client.users.fetch(String(hostId || '').replace(/\D/g, '')).catch(() => null);
+  if (!u) return { error: baseMsg(config, 'gwBadHost') };
+  g.hostId = u.id; g.hostTag = u.username; save();
+  await refreshMain({ client, config, g });
+  await refreshResults({ client, config, g });
+  return { giveaway: g };
 }
 
 // "Şartlarım": kişi şartları ne kadar yaptığını gizli olarak görür (5 sn bekleme)
@@ -503,7 +598,7 @@ async function handleReroll(interaction, config, id) {
 }
 
 // Komutlar (yazıyla ve slash) ortak: metin döndürür
-async function runCommand({ action, config, client, channel, member, user, rest, requirements }) {
+async function runCommand({ action, config, client, channel, member, user, rest, requirements, hostId }) {
   if (!config.giveaways.enabled) return { text: baseMsg(config, 'gwDisabled') };
   if (!isStaff(member, config)) return { text: baseMsg(config, 'gwStaffOnly') };
   const arg = String(rest || '').trim().split(/\s+/).filter(Boolean);
@@ -514,7 +609,7 @@ async function runCommand({ action, config, client, channel, member, user, rest,
       const p = parseStart(rest, !requirements);
       if (!p) return { text: baseMsg(config, 'gwUsage', { usage: '.gstart <süre> <kazanan> <ödül>' }) };
       if (!p.ms) return { text: baseMsg(config, 'gwBadDuration') };
-      const res = await start({ client, config, channel, hostId: user.id, ms: p.ms, winners: p.winners, prize: p.prize, requirements: requirements ? cleanReq(requirements) : p.req });
+      const res = await start({ client, config, channel, hostId: hostId || p.host || config.giveaways.hostId || user.id, ms: p.ms, winners: p.winners, prize: p.prize, requirements: requirements ? cleanReq(requirements) : p.req });
       return { text: res.error || baseMsg(config, 'gwStarted', { url: res.url }) };
     }
     case 'gend': { const id = pickId(); if (!id) return { text: baseMsg(config, 'gwNotRunning') }; const r = await finish({ client, config, id }); return { text: r.error || '✅' }; }
@@ -598,4 +693,4 @@ const view = g => ({
   winners: g.winners.map(id => ({ id, tag: g.winnerTags?.[id] || id, claimed: Boolean(g.claims?.[id]), disq: g.checks?.[id]?.ok === false, failed: g.checks?.[id]?.failed || [] })),
 });
 
-module.exports = { parseDuration, parseStart, cleanReq, hasReq, list, running, get, start, finish, reroll, cancel, remove, handleJoin, handleStatus, handleClaim, handleReroll, runCommand, startGiveawayWatcher, view, detail, override, checkUser, trackMessage, voiceUpdate, onMemberJoin, onMemberLeave, flush };
+module.exports = { parseDuration, parseStart, cleanReq, hasReq, list, running, get, start, finish, reroll, cancel, remove, handleJoin, handleStatus, handleInfo, handlePeople, setHost, handleClaim, handleReroll, runCommand, startGiveawayWatcher, view, detail, override, checkUser, trackMessage, voiceUpdate, onMemberJoin, onMemberLeave, flush };

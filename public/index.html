@@ -76,11 +76,17 @@
 
   <section class="wrap sec" id="cekilisler" hidden>
     <div class="sec-h"><p class="eyebrow" data-t="gwEyebrow">Çekilişler</p><h2 data-t="gwTitle">Çekilişlere katıl, ödülünü destekten al</h2><p class="muted" data-t="gwLead" id="gw-lead"></p></div>
-    <h3 class="gw-h" data-t="gwRunningHead">Şu an devam edenler</h3>
-    <div class="gws" id="gw-run"></div>
-    <h3 class="gw-h" data-t="gwEndedHead">Son bitenler</h3>
-    <div class="gws" id="gw-end"></div>
+    <div class="gw-stats" id="gw-stats"></div>
+    <div class="gw-bar" id="gw-bar">
+      <div class="gw-tabs" id="gw-tabs" role="tablist"></div>
+      <input class="gw-search" id="gw-search" type="search" autocomplete="off" aria-label="Ara">
+      <select class="gw-sort" id="gw-sort" aria-label="Sırala"></select>
+    </div>
+    <div class="gws" id="gw-list"></div>
+    <div class="gw-how" id="gw-how" hidden></div>
   </section>
+
+  <dialog class="gw-dialog" id="gw-dialog" aria-label="Çekiliş ayrıntısı"></dialog>
 
   <section class="wrap sec" id="nasil">
     <div class="sec-h"><p class="eyebrow" data-t="stepsEyebrow">Nasıl çalışır</p><h2 data-t="stepsTitle">Destek almak üç adım</h2></div>

@@ -39,6 +39,34 @@ function liveCounts(client) {
 }
 
 // Herkese açık site için: sadece zararsız bilgiler (kategori adları, panel yazısı, sayılar)
+// Siteye giden çekiliş verisi (herkese açık: kullanıcı ID'leri ve Discord linkleri gönderilmez)
+function siteGiveaways(cfg, guild) {
+  if (!cfg.giveaways.enabled || !cfg.giveaways.showOnSite) return null;
+  const o = cfg.giveaways.site;
+  const roles = {};
+  const item = g => {
+    const v = gw.view(g);
+    delete v.url;
+    v.channelName = guild?.channels.cache.get(g.channelId)?.name || '';
+    for (const id of g.requirements?.roleIds || []) roles[id] = guild?.roles.cache.get(id)?.name || 'rol';
+    v.winners = cfg.giveaways.showWinnersOnSite ? v.winners.filter(w => !w.disq).map(w => ({ tag: w.tag, claimed: w.claimed })) : [];
+    if (!o.requirements) v.requirements = null;
+    if (!o.host) v.hostTag = '';
+    if (!o.channel) v.channelName = '';
+    return v;
+  };
+  const all = gw.list();
+  const run = gw.running();
+  const ended = all.filter(g => g.status === 'ended');
+  return {
+    running: run.slice(0, o.maxRunning).map(item),
+    ended: ended.slice(0, o.maxEnded).map(item),
+    cancelled: o.showCancelled ? all.filter(g => g.status === 'cancelled').slice(0, 6).map(item) : [],
+    roles, options: o, claimHours: cfg.giveaways.claimHours, showWinners: cfg.giveaways.showWinnersOnSite,
+    totals: { running: run.length, ended: ended.length, entries: run.reduce((n, g) => n + g.entries.length, 0) },
+  };
+}
+
 function publicStats(client) {
   const cfg = readConfig();
   const ready = client.isReady();
@@ -60,11 +88,7 @@ function publicStats(client) {
     },
     site: cfg.site,
     categories: cfg.buttons.map(b => ({ id: b.id, label: b.label, emoji: b.emoji, description: b.description, color: b.color, hidden: b.hidden, giveaway: cfg.giveaways.enabled && b.id === cfg.giveaways.categoryId })),
-    giveaways: cfg.giveaways.enabled && cfg.giveaways.showOnSite ? {
-      running: gw.running().slice(0, 10).map(gw.view),
-      ended: gw.list().filter(g => g.status === 'ended').slice(0, 6).map(g => { const v = gw.view(g); if (!cfg.giveaways.showWinnersOnSite) v.winners = []; return v; }),
-      claimHours: cfg.giveaways.claimHours, showWinners: cfg.giveaways.showWinnersOnSite,
-    } : null,
+    giveaways: siteGiveaways(cfg, guild),
   };
 }
 
@@ -215,10 +239,11 @@ const handlers = {
     const channel = guild.channels.cache.get(String(body.channelId || '') || config.giveaways.channelId);
     if (!channel) throw new ApiError(400, 'Çekilişin yapılacağı kanalı seç (ya da Ayarlar\'da varsayılan kanalı belirle).');
     const ms = gw.parseDuration(body.duration);
-    const res = await gw.start({ client, config, channel, hostId: client.user.id, ms, winners: Math.min(Math.max(parseInt(body.winners, 10) || 1, 1), 20), prize: String(body.prize || '').trim().slice(0, 200), roleId: String(body.roleId || ''), requirements: body.requirements });
+    const res = await gw.start({ client, config, channel, hostId: /^\d{5,25}$/.test(String(body.hostId || '').trim()) ? String(body.hostId).trim() : (config.giveaways.hostId || client.user.id), ms, winners: Math.min(Math.max(parseInt(body.winners, 10) || 1, 1), 20), prize: String(body.prize || '').trim().slice(0, 200), roleId: String(body.roleId || ''), requirements: body.requirements });
     if (res.error) throw new ApiError(400, res.error);
     return { ok: true, message: 'Çekiliş başlatıldı.', url: res.url };
   },
+  'POST giveaways/host': async (client, body) => { const r = await gw.setHost({ client, config: readConfig(), id: String(body.id || ''), hostId: body.hostId }); if (r.error) throw new ApiError(400, r.error); return { ok: true, message: 'Düzenleyen değiştirildi, Discord mesajları güncellendi.' }; },
   'POST giveaways/detail': async (client, body) => { const d = gw.detail({ client, id: String(body.id || '') }); if (!d) throw new ApiError(404, 'Çekiliş bulunamadı.'); return d; },
   'POST giveaways/check': async (client, body) => { const r = await gw.checkUser({ client, config: readConfig(), id: String(body.id || ''), userId: String(body.userId || '').replace(/\D/g, '') }); if (r.error) throw new ApiError(400, r.error); return r; },
   'POST giveaways/override': async (client, body) => { const r = await gw.override({ client, config: readConfig(), id: String(body.id || ''), userId: String(body.userId || ''), ok: Boolean(body.ok), reason: body.reason }); if (r.error) throw new ApiError(400, r.error); return { ok: true, message: body.ok ? 'Kazanan geri alındı.' : 'Kazanan düşürüldü. Tekrar çek yapınca yerine yeni kazanan seçilir.' }; },

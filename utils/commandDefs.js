@@ -95,7 +95,7 @@ const ACTIONS = {
   },
   gstart: {
     label: 'Çekiliş başlat', usage: '<süre> <kazanan> <ödül>', needsTicket: false, perm: 'staff',
-    desc: 'Yazdığın kanalda çekiliş başlatır. Örn: ".gstart 1h 3 1M OwO Cash" = 1 saat sürer, 3 kazanan, ödül "1M OwO Cash". Süre: 30m, 2h, 1d, 1h30m. Kazananlar sonuç mesajındaki "Ödülünü Al" butonuyla ödül talebi (ticket) açar. Şart eklemek için ödülün sonuna | koyup yaz: ".gstart 1d 2 Nitro | invite=2 mesaj=50 ses=30 tag rol=@rol durum=.gg/deuslra" (invite = davet sayısı, mesaj = mesaj sayısı, ses = dakika, tag = sunucu etiketi, rol = rol etiketi veya ID, durum = özel durumda geçmesi gereken yazı, boşluksuz). Mesaj / ses / invite çekiliş başladıktan sonrasını sayar. Şartı yapmayan kazanan ödülü alamaz, tekrar çekilir.',
+    desc: 'Yazdığın kanalda çekiliş başlatır. Örn: ".gstart 1h 3 1M OwO Cash" = 1 saat sürer, 3 kazanan, ödül "1M OwO Cash". Süre: 30m, 2h, 1d, 1h30m. Kazananlar sonuç mesajındaki "Ödülünü Al" butonuyla ödül talebi (ticket) açar. Şart eklemek için ödülün sonuna | koyup yaz: ".gstart 1d 2 Nitro | invite=2 mesaj=50 ses=30 tag rol=@rol durum=.gg/deuslra" (invite = davet sayısı, mesaj = mesaj sayısı, ses = dakika, tag = sunucu etiketi, rol = rol etiketi veya ID, durum = özel durumda geçmesi gereken yazı, boşluksuz). Düzenleyen olarak başka birini göstermek için duzenleyen=KULLANICI_ID ekle. Mesaj / ses / invite çekiliş başladıktan sonrasını sayar. Şartı yapmayan kazanan ödülü alamaz, tekrar çekilir.',
     links: 'Panelde Çekilişler sekmesinden de başlatılır; slash karşılığı /cekilis baslat (şartlar: rol, tag, durum, ses, mesaj, invite seçenekleri).',
   },
   gend: {

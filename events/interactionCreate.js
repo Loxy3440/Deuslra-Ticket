@@ -14,6 +14,8 @@ async function handleButton(interaction, config) {
   if (id.startsWith('ticket-faq-go:')) return t.handleOpenButton(interaction, config, id.slice('ticket-faq-go:'.length), { skipFaq: true });
   if (id === 'gw-join') return gw.handleJoin(interaction, config);
   if (id === 'gw-status') return gw.handleStatus(interaction, config);
+  if (id.startsWith('gw-info:')) return gw.handleInfo(interaction, config, id.slice(8));
+  if (id.startsWith('gw-people:')) return gw.handlePeople(interaction, config, id.slice(10));
   if (id.startsWith('gw-claim:')) return gw.handleClaim(interaction, config, id.slice(9));
   if (id.startsWith('gw-reroll:')) return gw.handleReroll(interaction, config, id.slice(10));
   if (id.startsWith('ticket-rate:')) { const [, ch, n] = id.split(':'); return t.handleRating(interaction, config, ch, n); }
