@@ -317,7 +317,7 @@ const GW_BTN_ROWS = [
   ['Çekiliş mesajı (link)', 'Detaylar penceresinde, çekiliş mesajına götürür (rengi Discord belirler)', 'gwJumpBtn', 'gwEmojiJump', null, null],
 ];
 const GW_COLORS = { primary: 'Mavi', secondary: 'Gri', success: 'Yeşil', danger: 'Kırmızı' };
-const gwEmojiOk = v => { const t = String(v || '').trim(); return !t || /^<a?:\w{2,32}:\d{15,25}>$/.test(t) || /^[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}][\p{Extended_Pictographic}\u{FE0F}\u{200D}\u{1F3FB}-\u{1F3FF}]*$/u.test(t); };
+const gwEmojiOk = v => { const t = String(v || '').trim(); return !t || /^<a?:\w{2,32}:\d{17,19}>$/.test(t) || /^[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}][\p{Extended_Pictographic}\u{FE0F}\u{200D}\u{1F3FB}-\u{1F3FF}]*$/u.test(t); };
 function gwButtonsPane() {
   const defs = Object.fromEntries(schema.messages.filter(d => d.key.startsWith('gw')).map(d => [d.key, d.def]));
   const val = k => (cfg.messages[k] && String(cfg.messages[k]).trim()) || defs[k] || '';

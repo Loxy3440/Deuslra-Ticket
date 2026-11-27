@@ -7,7 +7,7 @@ const { renderAll } = require('./messages');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const hexNum = v => { const m = /^#?([0-9a-f]{6})$/i.exec(String(v || '').trim()); return m ? parseInt(m[1], 16) : null; };
 const okUrl = v => (/^https?:\/\/\S+$/i.test(String(v || '').trim()) ? String(v).trim().slice(0, 2000) : '');
-const okEmoji = v => { const s = String(v || '').trim(); return /^<a?:\w{2,32}:\d{15,25}>$/.test(s) || /^[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}][\p{Extended_Pictographic}\u{FE0F}\u{200D}\u{1F3FB}-\u{1F3FF}]*$/u.test(s) ? s : ''; };
+const okEmoji = v => { const s = String(v || '').trim(); return /^<a?:\w{2,32}:\d{17,19}>$/.test(s) || /^[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}][\p{Extended_Pictographic}\u{FE0F}\u{200D}\u{1F3FB}-\u{1F3FF}]*$/u.test(s) ? s : ''; };
 
 // Bir mesajı Discord gönderim verisine çevirir (null = gönderilecek bir şey yok)
 function buildOpenMessage(config, m, V, { ownerId = '', staffRoleIds = [] } = {}) {

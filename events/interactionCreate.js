@@ -75,7 +75,12 @@ module.exports = {
       if (err?.code === 40060) { console.warn('[INTERACTION] Bu etkileşime başka bir kopya zaten cevap verdi. Aynı bot token\'ı iki yerde çalışıyor olabilir; birini kapat.'); return; }
       console.error('[INTERACTION]', err);
       if (interaction.isRepliable()) {
-        await replyPrivate(interaction, msg(readConfig(), 'interactionError')).catch(() => null);
+        // Yönetici / Sunucuyu Yönet yetkisi olanlara gerçek hata da gösterilir (sorunu bulmak için); diğerleri sadece genel mesajı görür
+        let text = 'Bir hata oluştu.';
+        try { text = msg(readConfig(), 'interactionError'); } catch { /* ayar okunamıyorsa genel mesaj */ }
+        const perms = interaction.memberPermissions;
+        if (perms?.has?.('Administrator') || perms?.has?.('ManageGuild')) text += `\n\`\`\`${(err?.code ? `[${err.code}] ` : '') + String(err?.message || err).slice(0, 300)}\`\`\``;
+        await replyPrivate(interaction, text).catch(() => null);
       }
     }
   },
