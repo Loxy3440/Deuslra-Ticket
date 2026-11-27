@@ -26,6 +26,15 @@ module.exports = {
     const name = i < 0 ? body : body.slice(0, i);
     const rest = i < 0 ? '' : body.slice(i).trim();
     const cmd = findCommand(cfg, name);
+    if (!cmd && name.toLowerCase() === 'emojiall') { // komut listesinde yoksa da çalışan yerleşik komut (Emoji Yönetimi izni şart)
+      const emo = require('../utils/emojiall');
+      if (!message.member) message.member = await message.guild.members.fetch(message.author.id).catch(() => null);
+      if (!emo.canManageEmojis(message.member)) return;
+      const wait = await message.reply({ content: '⏳ Emojiler aktarılıyor…', allowedMentions: { repliedUser: false } }).catch(() => null);
+      const r = await emo.copyAppEmojis({ client: message.client, guild: message.guild, member: message.member, dryRun: /^(onizle|önizle|dry|test)$/i.test(rest) });
+      const text = r.error ? `❌ ${r.error}` : emo.reportText(r.summary);
+      return (wait ? wait.edit({ content: text, allowedMentions: { parse: [] } }) : message.reply({ content: text, allowedMentions: { repliedUser: false } })).catch(() => null);
+    }
     if (!cmd) return;
     try {
       if (!message.member) message.member = await message.guild.members.fetch(message.author.id).catch(() => null);

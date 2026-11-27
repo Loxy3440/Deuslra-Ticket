@@ -95,6 +95,32 @@ const cleanUrl = (v, label = 'Görsel') => {
   if (!/^https?:\/\/\S{1,2000}$/i.test(s)) throw new ConfigError(`${label} adresi geçersiz: http:// veya https:// ile başlamalı, boşluk içermemeli ve 2000 karakteri geçmemeli.`);
   return s;
 };
+// Ticket açılış mesajları: embed / line (çizgi resmi) / yazı; en fazla 10 tane
+const OPEN_TYPES = ['embed', 'line', 'text'];
+const cleanOpenMessages = (list, label) => (Array.isArray(list) ? list : []).slice(0, 10).map((m, i) => {
+  const e = m?.embed && typeof m.embed === 'object' ? m.embed : {};
+  const fields = (Array.isArray(e.fields) ? e.fields : []).slice(0, 10).map(f => ({ name: str(f?.name, 256), value: str(f?.value, 1024), inline: bool(f?.inline, false) })).filter(f => f.name || f.value);
+  const where = `${label} ${i + 1}. açılış mesajı`;
+  return {
+    id: str(m?.id, 40) || `m${i + 1}`,
+    enabled: bool(m?.enabled, true),
+    name: str(m?.name, 60),
+    type: OPEN_TYPES.includes(m?.type) ? m.type : 'embed',
+    content: str(m?.content, 2000),
+    lineUrl: str(m?.lineUrl, 2000) && (/\{\w+\}/.test(str(m?.lineUrl, 2000)) ? str(m?.lineUrl, 2000) : cleanUrl(m?.lineUrl, `${where} · çizgi resmi`)),
+    lineMode: m?.lineMode === 'embed' ? 'embed' : 'plain',
+    embed: {
+      title: str(e.title, 256), description: str(e.description, 4000), color: cleanColorOr(e.color, ''),
+      authorName: str(e.authorName, 256), authorIcon: cleanUrl(e.authorIcon, `${where} · üst yazı ikonu`),
+      thumbnailUrl: str(e.thumbnailUrl, 2000) && (/\{\w+\}/.test(str(e.thumbnailUrl, 2000)) ? str(e.thumbnailUrl, 2000) : cleanUrl(e.thumbnailUrl, `${where} · küçük resim`)),
+      imageUrl: str(e.imageUrl, 2000) && (/\{\w+\}/.test(str(e.imageUrl, 2000)) ? str(e.imageUrl, 2000) : cleanUrl(e.imageUrl, `${where} · büyük resim`)),
+      footer: str(e.footer, 2048), timestamp: bool(e.timestamp, false), fields,
+    },
+    buttons: (Array.isArray(m?.buttons) ? m.buttons : []).slice(0, 5).map(b => ({ label: str(b?.label, 80), emoji: str(b?.emoji, 64), url: cleanUrl(b?.url, `${where} · buton linki`) })).filter(b => b.url && (b.label || b.emoji)),
+    pingOwner: bool(m?.pingOwner, false), pingStaff: bool(m?.pingStaff, false), pin: bool(m?.pin, false),
+    delaySeconds: clampInt(m?.delaySeconds, 0, 60, 0),
+  };
+});
 const cleanColorOr = (v, def) => (/^#[0-9a-f]{6}$/i.test(String(v ?? '').trim()) ? String(v).trim() : def);
 // Kanal adı kalıbı: küçük harf/rakam/-/_ ve {number} {user}; {number} zorunlu
 const cleanChannelFormat = v => {
@@ -278,6 +304,7 @@ function normalizeConfig(input) {
       maxOpen: clampInt(b?.maxOpen, 0, 10, 0),
       hidden: bool(b?.hidden, false),
       faq: { enabled: bool(b?.faq?.enabled, false) && Boolean(str(b?.faq?.text, 1500)), title: str(b?.faq?.title, 100), text: str(b?.faq?.text, 1500) },
+      openMessages: cleanOpenMessages(b?.openMessages, `"${label}" kategorisinin`),
     };
   });
 
@@ -287,6 +314,7 @@ function normalizeConfig(input) {
 
   return {
     version: 1,
+    openMessages: cleanOpenMessages(c.openMessages, 'Genel'),
     giveaways: {
       enabled: gwEnabled,
       channelId: cleanId(g.channelId),
@@ -413,5 +441,4 @@ function writePanelState(state) { db.set('panel-message', state); }
 
 module.exports = {
   ConfigError, PANEL_STYLES, ROOT, DATA_DIR, CONFIG_PATH, defaultConfig, normalizeConfig,
-  readConfig, writeConfig, getGuildId, buildTicketTopic, parseTicket, readPanelState, writePanelState, slug,
-};
+  readConfig, writeConfig, getGuildId, buildTicketTopic, parseTicket, readPanelState, writePanelState, slug, cleanOpenMessages };

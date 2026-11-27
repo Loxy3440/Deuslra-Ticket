@@ -116,6 +116,29 @@ Sonuç / tekrar çek mesajının altında şartlı çekilişlerde **Şart durumu
 - **Discord butonları:** çalışan çekilişte *Katıl*, *Şartlarım*, *Detaylar*, *Katılımcılar*; sonuç mesajında *Ödülünü Al*, *Tekrar Çek*, *Detaylar*. *Detaylar* sadece basan kişiye çekilişin her şeyini ve kendi durumunu (katıldın mı, şartlarda neredesin, kazandıysan geçerli mi) gösterir; *Yenile* ve çekiliş mesajına giden link butonu vardır. *Katılımcılar* sayfalı listedir (🏆 = kazanan). Tüm yazılar Çekiliş mesajları sekmesinden düzenlenir.
 - **Site:** sekmeler (Devam edenler / Biten / Tümü), arama, sıralama, canlı geri sayım, ayrıntı penceresi (düzenleyen, kanal, şartlar, kazananlar, "Nasıl katılırım?"). Neyin görüneceği Panel > Çekiliş > Ayarlar > *Site çekiliş bölümü seçenekleri*, yazılar Site yazıları sekmesinden düzenlenir. Sitede kullanıcı ID'si ve Discord linki gösterilmez.
 
+### Çekiliş butonları (emoji, renk, gösterme)
+
+Panel > Çekiliş > **Butonlar**: Katıl, Şartlarım, Detaylar, Katılımcılar, Ödülünü Al, Tekrar Çek, Yenile ve link butonunun yazısı, emojisi ve rengi (mavi / gri / yeşil / kırmızı) değiştirilir; Şartlarım, Detaylar ve Katılımcılar gizlenebilir. Katılımcılar penceresindeki sayfa butonlarının (⏮ ◀ ▶ ⏭) emojileri ve rengi de buradan ayarlanır. Sunucu emojisi için `<:ad:123456789012345678>` yaz; geçersiz emoji sessizce yok sayılır (buton bozulmaz). Ticket butonları Destek > Talep butonları sekmesinde.
+
+### Detaylar ve Katılımcılar
+
+- **Detaylar:** zaman çubuğu (% ve bitiş), sunucu ikonu, durum, ödül, düzenleyen, katılımcı, *şartları tamamlayan* (mesaj / ses / davet sayıları), senin durumun, şartlarında ilerleme çubukları (`▰▰▰▱▱ 18/30`), en aktif 3 üye ve bitmişse kazananların şart durumu. Hepsi Çekiliş mesajları sekmesinden düzenlenir.
+- **Katılımcılar:** özet üst bilgi (katılımcı, kazanan, şartı tamamlama çubuğu), kişi başına ilerleme (`✉️ 54/50 · 🔊 40/30 dk · 📨 2/2`) ve ✅ / ⏳ / 🏆 işaretleri, 10'arlı sayfalar, **filtre menüsü** (tümü / şartı tamamlayanlar / eksik olanlar / kazananlar) ve **sıralama menüsü** (katılma sırası / en aktifler). Sadece basan kişi görür.
+- Şartı tamamlayan sayısı yalnızca mesaj / ses / davet şartlarını sayar; rol, tag ve durum bitişte kontrol edilir.
+
+## Ticket açılış mesajları
+
+Panel > Destek > **Açılış mesajları**: biri ticket açınca bot önce normal karşılama mesajını atar, sonra burada hazırladığın ek mesajları sırayla gönderir.
+- **Kategoriye özel ya da tüm kategoriler:** üstteki menüden seç. Genel liste önce, kategori listesi sonra gider. Her listede en fazla 10 mesaj.
+- **Üç tür:** *Line* (çizgi / ayraç resmi; düz resim ya da renkli kutu içinde), *Embed* (başlık, açıklama, renk, üst yazı + ikon, küçük / büyük resim, alt yazı, saat, 10 alana kadar ek alan) ve *Yazı*.
+- **Ayrıntılar:** link butonları (5'e kadar), talep sahibini / destek rollerini etiketleme, mesajı sabitleme, göndermeden önce bekleme (0-60 sn), açma-kapama, sıralama, kopyalama.
+- Yazılarda ticket değişkenleri çalışır: `{user} {username} {category} {number} {server} {staff} {opened}` ve embed küçük resminde `{useravatar}`.
+- Her mesajın yanındaki **🧪 Dene** düğmesi mesajı seçtiğin kanala örnek değerlerle gönderir (önce kaydetmen gerekmez).
+
+## Emoji aktarımı
+
+`/emojiall` (ya da `.emojiall`): Developer Portal > Uygulaman > **Emojis** bölümündeki tüm emojileri bu sunucuya yükler. Aynı adlı emoji varsa atlar; statik ve hareketli emoji yerleri ayrı sayılır, dolunca durur ve neyin sığmadığını söyler. `onizleme` (yazıyla `.emojiall onizle`) hiçbir şey eklemeden ne olacağını gösterir. Komutu yazan kişide ve botta **Emoji ve Çıkartmaları Yönet** izni olmalı. Sunucu başına aynı anda tek aktarım çalışır.
+
 ## Komutlar
 
 | Komut | Ne yapar | Kim kullanır |

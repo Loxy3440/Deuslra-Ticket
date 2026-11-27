@@ -243,6 +243,13 @@ async function performAction(ctx) {
         ).setFooter({ text: config.brandName });
       return say('', { embeds: [embed] });
     }
+    case 'emojiall': {
+      const emo = require('./emojiall');
+      const wait = await say('⏳ Emojiler aktarılıyor…', { allowedMentions: { parse: [] } });
+      const r = await emo.copyAppEmojis({ client: guild.client, guild, member, dryRun: /^(onizle|önizle|dry|test)$/i.test(String(rest).trim()) });
+      const text = r.error ? `❌ ${r.error}` : emo.reportText(r.summary);
+      return wait?.edit ? wait.edit({ content: text, allowedMentions: { parse: [] } }).catch(() => say(text, { allowedMentions: { parse: [] } })) : say(text, { allowedMentions: { parse: [] } });
+    }
     case 'gstart': case 'gend': case 'greroll': case 'gcancel': case 'glist': {
       const r = await require('./giveaways').runCommand({ action: sw, config, client: guild.client, channel, member, user, rest });
       return say(r.text, { allowedMentions: { parse: [] } });

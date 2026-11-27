@@ -93,6 +93,11 @@ const ACTIONS = {
     desc: 'Bu talep için "hareketsiz talep" uyarısını ve otomatik kapatmayı kapatır; aynı komutu tekrar yazarsan tekrar açılır. Uzun sürecek (örn. beklenen) talepler için kullan.',
     links: 'Genel ayar: Ayarlar > "Hareketsiz talepleri otomatik uyar ve kapat". Butona da bağlanabilir.',
   },
+  emojiall: {
+    label: 'Tüm uygulama emojilerini sunucuya aktar', usage: '[onizle]', needsTicket: false, perm: 'staff',
+    desc: 'Developer Portal > Uygulaman > Emojis bölümündeki tüm emojileri bu sunucuya yükler. Aynı adlı emoji sunucuda varsa atlanır; statik ve hareketli emoji yerleri dolunca durur. "onizle" yazarsan sadece ne olacağını gösterir. Komutu yazan kişide "Emoji ve Çıkartmaları Yönet" (ya da Yönetici) izni, botta da "Emoji ve Çıkartmaları Yönet" izni olmalı.',
+    links: 'Slash karşılığı /emojiall (onizleme seçeneği var).',
+  },
   gstart: {
     label: 'Çekiliş başlat', usage: '<süre> <kazanan> <ödül>', needsTicket: false, perm: 'staff',
     desc: 'Yazdığın kanalda çekiliş başlatır. Örn: ".gstart 1h 3 1M OwO Cash" = 1 saat sürer, 3 kazanan, ödül "1M OwO Cash". Süre: 30m, 2h, 1d, 1h30m. Kazananlar sonuç mesajındaki "Ödülünü Al" butonuyla ödül talebi (ticket) açar. Şart eklemek için ödülün sonuna | koyup yaz: ".gstart 1d 2 Nitro | invite=2 mesaj=50 ses=30 tag rol=@rol durum=.gg/deuslra" (invite = davet sayısı, mesaj = mesaj sayısı, ses = dakika, tag = sunucu etiketi, rol = rol etiketi veya ID, durum = özel durumda geçmesi gereken yazı, boşluksuz). Düzenleyen olarak başka birini göstermek için duzenleyen=KULLANICI_ID ekle. Mesaj / ses / invite çekiliş başladıktan sonrasını sayar. Şartı yapmayan kazanan ödülü alamaz, tekrar çekilir.',
@@ -144,6 +149,7 @@ const mk = (name, action, extra = {}) => ({
 });
 
 const DEFAULT_COMMANDS = [
+  mk('emojiall', 'emojiall', { description: 'Uygulama emojilerini sunucuya aktarır' }),
   mk('close', 'close', { description: 'Ticket\'ı kapatır' }),
   mk('reopen', 'reopen', { description: 'Kapalı ticket\'ı yeniden açar' }),
   mk('delete', 'delete', { description: 'Ticket\'ı kalıcı siler' }),

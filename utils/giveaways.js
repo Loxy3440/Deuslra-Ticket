@@ -1,4 +1,5 @@
-const { ActionRowBuilder, ActivityType, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
+const { ActionRowBuilder, ActivityType, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionFlagsBits, StringSelectMenuBuilder } = require('discord.js');
+const { okEmoji } = require('./openMessages');
 const db = require('./db');
 const { msg: baseMsg } = require('./messages');
 const { isStaff } = require('./permissions');
@@ -328,22 +329,12 @@ const resultEmbed = (config, g, ids) => templEmbed(config, g, tplVars(config, g,
   titleKey: 'gwResTitle', descKey: 'gwResBody', colorKey: 'gwResColor', authorKey: 'gwResAuthor', thumbKey: 'gwResThumb', imageKey: 'gwResImage', footerKey: 'gwResFooter', orderKey: 'gwResOrder', fields: RES_FIELDS, defColor: config.colors.success });
 
 const joinRow = (config, disabled = false, g = null) => {
-  const m = k => baseMsg(config, k).slice(0, 80);
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('gw-join').setLabel(m('gwJoinBtn')).setEmoji('🎉').setStyle(ButtonStyle.Primary).setDisabled(disabled),
-  );
-  if (g && hasReq(g)) row.addComponents(new ButtonBuilder().setCustomId('gw-status').setLabel(m('gwStatusBtn')).setEmoji('📋').setStyle(ButtonStyle.Secondary).setDisabled(disabled));
-  if (g) row.addComponents(
-    new ButtonBuilder().setCustomId(`gw-info:${g.id || ''}`).setLabel(m('gwInfoBtn')).setEmoji('🔎').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`gw-people:${g.id || ''}:0`).setLabel(m('gwPeopleBtn')).setEmoji('👥').setStyle(ButtonStyle.Secondary),
-  );
-  return [row];
+  const btns = [gwBtn(config, 'join', 'gw-join', disabled)];
+  if (g && hasReq(g)) btns.push(gwBtn(config, 'status', 'gw-status', disabled));
+  if (g) btns.push(gwBtn(config, 'info', `gw-info:${g.id || ''}`), gwBtn(config, 'people', `gw-people:${g.id || ''}:0:all:join`));
+  return [new ActionRowBuilder().addComponents(...btns.filter(Boolean))];
 };
-const resultRow = (config, id) => [new ActionRowBuilder().addComponents(
-  new ButtonBuilder().setCustomId(`gw-claim:${id}`).setLabel(baseMsg(config, 'gwClaimBtn').slice(0, 80)).setEmoji('🎁').setStyle(ButtonStyle.Success),
-  new ButtonBuilder().setCustomId(`gw-reroll:${id}`).setLabel(baseMsg(config, 'gwRerollBtn').slice(0, 80)).setEmoji('🔔').setStyle(ButtonStyle.Secondary),
-  new ButtonBuilder().setCustomId(`gw-info:${id}`).setLabel(baseMsg(config, 'gwInfoBtn').slice(0, 80)).setEmoji('🔎').setStyle(ButtonStyle.Secondary),
-)];
+const resultRow = (config, id) => [new ActionRowBuilder().addComponents(...[gwBtn(config, 'claim', `gw-claim:${id}`), gwBtn(config, 'reroll', `gw-reroll:${id}`), gwBtn(config, 'info', `gw-info:${id}`)].filter(Boolean))];
 
 async function fetchChannel(client, id) { return client.channels.cache.get(id) || (await client.channels.fetch(id).catch(() => null)); }
 async function tagOf(client, id) { return (await client.users.fetch(id).catch(() => null))?.username || id; }
@@ -387,14 +378,63 @@ async function handleJoin(interaction, config) {
   return note;
 }
 
+// ---------- Buton ayarları (emoji / renk / gösterme Panel > Çekiliş > Butonlar'dan) ----------
+const STYLES = { primary: ButtonStyle.Primary, secondary: ButtonStyle.Secondary, success: ButtonStyle.Success, danger: ButtonStyle.Danger };
+const BTN = { // id: [yazı anahtarı, emoji anahtarı, renk anahtarı, gösterme anahtarı, yedek yazı]
+  join: ['gwJoinBtn', 'gwEmojiJoin', 'gwColorJoin', null, 'Katıl'], status: ['gwStatusBtn', 'gwEmojiStatus', 'gwColorStatus', 'gwShowStatus', 'Şartlarım'],
+  info: ['gwInfoBtn', 'gwEmojiInfo', 'gwColorInfo', 'gwShowInfo', 'Detaylar'], people: ['gwPeopleBtn', 'gwEmojiPeople', 'gwColorPeople', 'gwShowPeople', 'Katılımcılar'],
+  claim: ['gwClaimBtn', 'gwEmojiClaim', 'gwColorClaim', null, 'Ödülünü Al'], reroll: ['gwRerollBtn', 'gwEmojiReroll', 'gwColorReroll', null, 'Tekrar Çek'],
+  refresh: ['gwRefreshBtn', 'gwEmojiRefresh', 'gwColorRefresh', null, 'Yenile'],
+};
+const isOff = v => /^(hay[ıi]r|no|false|0|kapal[ıi]|off)$/i.test(String(v || '').trim());
+function gwBtn(config, id, customId, disabled = false) {
+  const d = BTN[id];
+  if (d[3] && isOff(baseMsg(config, d[3]))) return null;
+  const label = baseMsg(config, d[0]).trim().slice(0, 80), emoji = okEmoji(baseMsg(config, d[1]));
+  const b = new ButtonBuilder().setCustomId(customId).setStyle(STYLES[baseMsg(config, d[2]).trim().toLowerCase()] || ButtonStyle.Secondary).setDisabled(disabled);
+  if (label) b.setLabel(label);
+  if (emoji) b.setEmoji(emoji);
+  if (!label && !emoji) b.setLabel(d[4]);
+  return b;
+}
+function navBtn(config, key, customId, disabled) {
+  const b = new ButtonBuilder().setCustomId(customId).setStyle(STYLES[baseMsg(config, 'gwColorNav').trim().toLowerCase()] || ButtonStyle.Secondary).setDisabled(disabled);
+  const e = okEmoji(baseMsg(config, `gwEmoji${key}`));
+  return e ? b.setEmoji(e) : b.setLabel({ First: '«', Prev: '‹', Next: '›', Last: '»' }[key]);
+}
+function jumpBtn(config, url) {
+  const label = baseMsg(config, 'gwJumpBtn').trim().slice(0, 80), emoji = okEmoji(baseMsg(config, 'gwEmojiJump'));
+  const b = new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(url);
+  if (label) b.setLabel(label);
+  if (emoji) b.setEmoji(emoji);
+  if (!label && !emoji) b.setLabel('Çekiliş mesajı');
+  return b;
+}
+
+// ---------- Görsel yardımcılar: ilerleme çubuğu, sayısal şartlar ----------
+const bar = (cur, need, len = 10) => { const r = need > 0 ? Math.max(0, Math.min(1, cur / need)) : 0; const f = Math.round(r * len); return '▰'.repeat(f) + '▱'.repeat(len - f); };
+function numericReqs(g) {
+  const r = g.requirements || {}; const out = [];
+  if (r.messages) out.push({ key: 'messages', need: r.messages, icon: '✉️', unit: '' });
+  if (r.voiceMinutes) out.push({ key: 'voice', need: r.voiceMinutes, icon: '🔊', unit: ' dk' });
+  if (r.invites) out.push({ key: 'invites', need: r.invites, icon: '📨', unit: '' });
+  return out;
+}
+const curOf = (g, uid, key) => (key === 'messages' ? (g.progress?.[uid]?.messages || 0) : key === 'voice' ? Math.floor(voiceMsOf(g, uid) / 60000) : (g.progress?.[uid]?.invitedIds?.length || 0));
+const meets = (g, uid) => numericReqs(g).every(x => curOf(g, uid, x.key) >= x.need);
+const scoreOf = (g, uid) => curOf(g, uid, 'messages') + curOf(g, uid, 'voice') + curOf(g, uid, 'invites') * 10;
+const progText = (g, uid) => numericReqs(g).map(x => `${x.icon} ${curOf(g, uid, x.key)}/${x.need}${x.unit}`).join(' · ');
+const reqLine = x => `${x.ok ? '✅' : '❌'} ${x.label}${x.need ? `\n　${bar(x.cur, x.need)} **${x.cur}/${x.need}**` : ''}`;
+
 // ---------- Ayrıntı (Detaylar) butonu ----------
 const INFO_FIELDS = {
   ...BASE_FIELDS,
   state: ['gwFieldState', 'gwValState', true], started: ['gwFieldStarted', 'gwValStarted', true], you: ['gwFieldYou', 'gwValYou', true],
-  myreqs: ['gwFieldMyReqs', 'gwValMyReqs', false], claim: ['gwFieldClaim', 'gwValClaim', true],
+  myreqs: ['gwFieldMyReqs', 'gwValMyReqs', false], claim: ['gwFieldClaim', 'gwValClaim', true], meeting: ['gwFieldMeeting', 'gwValMeeting', true], top: ['gwFieldTop', 'gwValTop', false],
   x1: ['gwInfoX1Name', 'gwInfoX1Val', false], x2: ['gwInfoX2Name', 'gwInfoX2Val', false],
 };
 const infoWait = new Map();
+const peopleRow = (config, g) => [gwBtn(config, 'refresh', `gw-info:${g.id}:r`), gwBtn(config, 'people', `gw-people:${g.id}:0:all:join`)].filter(Boolean);
 async function handleInfo(interaction, config, rest) {
   const [gidPart, flag] = String(rest || '').split(':');
   const g = get(gidPart || interaction.message.id) || get(interaction.message.id);
@@ -413,40 +453,89 @@ async function handleInfo(interaction, config, rest) {
   let myreq = '';
   if (hasReq(g)) {
     const res = await evaluate({ client: interaction.client, config, g, userId: uid });
-    myreq = res.results.map(x => `${x.ok ? '✅' : '❌'} ${x.label}${x.need ? ` (${x.cur}/${x.need})` : ''}`).join('\n');
+    myreq = res.results.map(reqLine).join('\n');
   }
+  // zaman çubuğu + sayısal şartları tamamlayanlar + en aktifler
+  const now = Date.now(), total = Math.max(1, g.endsAt - g.createdAt);
+  const percent = g.status === 'running' ? Math.min(100, Math.max(0, Math.round((now - g.createdAt) / total * 100))) : 100;
+  const tv = { timeBar: bar(percent, 100, 12), percent: String(percent), ends: `<t:${unix(g.endsAt)}:R>`, endsfull: `<t:${unix(g.endsAt)}:f>`, endedfull: `<t:${unix(g.endedAt || g.endsAt)}:F>` };
+  const progressLine = baseMsg(config, g.status === 'running' ? 'gwProgRunning' : g.status === 'ended' ? 'gwProgEnded' : 'gwProgCancelled', tv);
+  const nums = numericReqs(g);
+  const okCount = nums.length ? g.entries.filter(id => meets(g, id)).length : 0;
+  const meeting = nums.length && g.entries.length ? `${okCount} / ${g.entries.length} (%${Math.round(okCount / g.entries.length * 100)})` : '';
+  const medals = ['🥇', '🥈', '🥉'];
+  const topList = nums.length ? [...g.entries].map(id => ({ id, s: scoreOf(g, id) })).filter(x => x.s > 0).sort((a, b) => b.s - a.s).slice(0, 3) : [];
+  const top = topList.map((x, i) => `${medals[i]} <@${x.id}> · ${progText(g, x.id)}`).join('\n');
+  const guild = interaction.guild;
   const vars = tplVars(config, g, {
     state: baseMsg(config, g.status === 'running' ? 'gwStateRunning' : g.status === 'ended' ? 'gwStateEnded' : 'gwStateCancelled'),
     you, myrequirements: myreq, claimhours: String(config.giveaways.claimHours || '∞'), hostname: g.hostTag || '',
+    servername: guild?.name || '', servericon: guild?.iconURL?.({ size: 256 }) || '', progressline: progressLine, timebar: tv.timeBar, percent: tv.percent,
+    meeting, meetingcount: String(okCount), top,
   });
-  const embed = templEmbed(config, g, vars, { titleKey: 'gwInfoTitle', descKey: 'gwInfoDesc', colorKey: 'gwInfoColor', footerKey: 'gwInfoFooter', orderKey: 'gwInfoOrder', fields: INFO_FIELDS, defColor: config.colors.main });
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`gw-info:${g.id}:r`).setLabel(baseMsg(config, 'gwRefreshBtn').slice(0, 80)).setEmoji('🔄').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId(`gw-people:${g.id}:0`).setLabel(baseMsg(config, 'gwPeopleBtn').slice(0, 80)).setEmoji('👥').setStyle(ButtonStyle.Secondary),
-  );
-  if (g.url) row.addComponents(new ButtonBuilder().setLabel(baseMsg(config, 'gwJumpBtn').slice(0, 80)).setEmoji('🔗').setStyle(ButtonStyle.Link).setURL(g.url));
+  const embed = templEmbed(config, g, vars, { titleKey: 'gwInfoTitle', descKey: 'gwInfoDesc', colorKey: 'gwInfoColor', authorKey: 'gwInfoAuthor', thumbKey: 'gwInfoThumb', imageKey: 'gwInfoImage', footerKey: 'gwInfoFooter', orderKey: 'gwInfoOrder', fields: INFO_FIELDS, defColor: config.colors.main });
+  const row = new ActionRowBuilder().addComponents(...peopleRow(config, g), ...(g.url ? [jumpBtn(config, g.url)] : []));
   return interaction.editReply({ embeds: [embed], components: [row], content: '', allowedMentions: { parse: [] } });
 }
 
-// Katılımcı listesi: sayfalı (20 kişi), kazananların yanında 🏆
-const PEOPLE_PER_PAGE = 20;
+// ---------- Katılımcı listesi: filtre, sıralama, sayfalar ----------
+const PEOPLE_PER_PAGE = 10;
+const FILTERS = ['all', 'ok', 'todo', 'win'], SORTS = ['join', 'active'];
+const FILTER_KEY = { all: 'gwFilterAll', ok: 'gwFilterOk', todo: 'gwFilterTodo', win: 'gwFilterWin' }, SORT_KEY = { join: 'gwSortJoin', active: 'gwSortActive' };
+function peoplePayload(interaction, config, g, { page = 0, filter = 'all', sort = 'join' }) {
+  const nums = numericReqs(g);
+  const filters = FILTERS.filter(f => (f === 'ok' || f === 'todo' ? nums.length > 0 : f === 'win' ? g.status === 'ended' : true));
+  if (!filters.includes(filter)) filter = 'all';
+  if (!SORTS.includes(sort)) sort = 'join';
+  let rows = g.entries.map((id, i) => ({ id, i, ok: meets(g, id), win: g.winners.includes(id), score: scoreOf(g, id) }));
+  if (filter === 'ok') rows = rows.filter(r => r.ok); else if (filter === 'todo') rows = rows.filter(r => !r.ok); else if (filter === 'win') rows = rows.filter(r => r.win);
+  if (sort === 'active') rows.sort((a, b) => b.score - a.score || a.i - b.i);
+  const pages = Math.max(1, Math.ceil(rows.length / PEOPLE_PER_PAGE));
+  page = Math.min(Math.max(page, 0), pages - 1);
+  const slice = rows.slice(page * PEOPLE_PER_PAGE, (page + 1) * PEOPLE_PER_PAGE);
+  const okCount = nums.length ? g.entries.filter(id => meets(g, id)).length : 0;
+  const mPct = g.entries.length ? Math.round(okCount / g.entries.length * 100) : 0;
+  const meetingLine = nums.length ? baseMsg(config, 'gwPeopleMeeting', { meetingcount: String(okCount), meetingbar: bar(okCount, g.entries.length || 1, 10), meetingpercent: String(mPct) }) : '';
+  const base = tplVars(config, g);
+  const head = baseMsg(config, 'gwPeopleHead', { ...base, meetingline: meetingLine, filter: baseMsg(config, FILTER_KEY[filter]), sort: baseMsg(config, SORT_KEY[sort]) }).replace(/\n{3,}/g, '\n\n').trim();
+  const lines = slice.map((r, k) => {
+    const mark = r.win ? baseMsg(config, 'gwMarkWinner') : nums.length ? baseMsg(config, r.ok ? 'gwMarkOk' : 'gwMarkTodo') : '';
+    return baseMsg(config, 'gwPeopleLine', { n: String(page * PEOPLE_PER_PAGE + k + 1), user: `<@${r.id}>`, mark, progress: nums.length ? progText(g, r.id) : '' }).split('\n').map(x => x.replace(/\s+$/u, '').replace(/^　$/u, '')).filter((x, idx, a) => x || idx === 0).join('\n').trim();
+  });
+  const empty = baseMsg(config, 'gwPeopleEmpty');
+  const e = new EmbedBuilder().setColor(config.colors.main).setTitle(baseMsg(config, 'gwPeopleTitle', base).slice(0, 256))
+    .setDescription(`${head}\n\n${lines.length ? lines.join('\n') : empty}`.slice(0, 4000))
+    .setFooter({ text: `${baseMsg(config, 'gwPeopleFooter', { page: String(page + 1), pages: String(pages) })}${nums.length ? `\n${baseMsg(config, 'gwPeopleNote')}` : ''}`.slice(0, 2048) });
+  const icon = interaction.guild?.iconURL?.({ size: 128 }); if (icon) e.setThumbnail(icon);
+  const st = `${filter}:${sort}`;
+  const navRow = new ActionRowBuilder().addComponents(
+    navBtn(config, 'First', `gw-people:${g.id}:0:${st}:n1`, page <= 0), navBtn(config, 'Prev', `gw-people:${g.id}:${page - 1}:${st}:n2`, page <= 0),
+    new ButtonBuilder().setCustomId(`gw-pg:${g.id}`).setLabel(`${page + 1} / ${pages}`).setStyle(ButtonStyle.Secondary).setDisabled(true),
+    navBtn(config, 'Next', `gw-people:${g.id}:${page + 1}:${st}:n3`, page >= pages - 1), navBtn(config, 'Last', `gw-people:${g.id}:${pages - 1}:${st}:n4`, page >= pages - 1),
+  );
+  const fSel = new StringSelectMenuBuilder().setCustomId(`gw-pf:${g.id}:${sort}`).setPlaceholder(baseMsg(config, 'gwFilterPh').slice(0, 100))
+    .addOptions(filters.map(f => ({ label: baseMsg(config, FILTER_KEY[f]).slice(0, 100), value: f, default: f === filter })));
+  const sSel = new StringSelectMenuBuilder().setCustomId(`gw-ps:${g.id}:${filter}`).setPlaceholder(baseMsg(config, 'gwSortPh').slice(0, 100))
+    .addOptions(SORTS.map(s => ({ label: baseMsg(config, SORT_KEY[s]).slice(0, 100), value: s, default: s === sort })));
+  const last = [gwBtn(config, 'info', `gw-info:${g.id}`), gwBtn(config, 'refresh', `gw-people:${g.id}:${page}:${st}:n5`)].filter(Boolean);
+  const components = [navRow, new ActionRowBuilder().addComponents(fSel), new ActionRowBuilder().addComponents(sSel), ...(last.length ? [new ActionRowBuilder().addComponents(...last)] : [])];
+  return { embeds: [e], components, content: '', allowedMentions: { parse: [] } };
+}
 async function handlePeople(interaction, config, rest) {
-  const [gidPart, pageStr, nav] = String(rest || '').split(':');
+  const [gidPart, pageStr, filter = 'all', sort = 'join', nav] = String(rest || '').split(':');
   const g = get(gidPart || interaction.message.id) || get(interaction.message.id);
   if (!g) return replyPrivate(interaction, baseMsg(config, 'gwNotRunning', { user: `<@${interaction.user.id}>` }));
-  const pages = Math.max(1, Math.ceil(g.entries.length / PEOPLE_PER_PAGE));
-  const page = Math.min(Math.max(parseInt(pageStr, 10) || 0, 0), pages - 1);
-  if (nav === 'n') await interaction.deferUpdate().catch(() => null); else await interaction.deferReply({ ephemeral: true }).catch(() => null);
-  const vars = tplVars(config, g);
-  const slice = g.entries.slice(page * PEOPLE_PER_PAGE, (page + 1) * PEOPLE_PER_PAGE);
-  const e = new EmbedBuilder().setColor(config.colors.main).setTitle(baseMsg(config, 'gwPeopleTitle', vars).slice(0, 256))
-    .setDescription(slice.length ? slice.map((id, i) => `${page * PEOPLE_PER_PAGE + i + 1}. <@${id}>${g.winners.includes(id) ? ' 🏆' : ''}`).join('\n') : baseMsg(config, 'gwPeopleEmpty'))
-    .setFooter({ text: baseMsg(config, 'gwPeopleFooter', { page: String(page + 1), pages: String(pages) }).slice(0, 200) });
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`gw-people:${g.id}:${page - 1}:n`).setEmoji('◀️').setStyle(ButtonStyle.Secondary).setDisabled(page <= 0),
-    new ButtonBuilder().setCustomId(`gw-people:${g.id}:${page + 1}:n`).setEmoji('▶️').setStyle(ButtonStyle.Secondary).setDisabled(page >= pages - 1),
-  );
-  return interaction.editReply({ embeds: [e], components: pages > 1 ? [row] : [], content: '', allowedMentions: { parse: [] } });
+  if (String(nav || '').startsWith('n')) await interaction.deferUpdate().catch(() => null); else await interaction.deferReply({ ephemeral: true }).catch(() => null);
+  return interaction.editReply(peoplePayload(interaction, config, g, { page: parseInt(pageStr, 10) || 0, filter, sort }));
+}
+// Filtre / sıralama menüleri
+async function handlePeopleSelect(interaction, config) {
+  const [kind, gid, other] = interaction.customId.split(':');
+  const g = get(gid);
+  if (!g) return replyPrivate(interaction, baseMsg(config, 'gwNotRunning', { user: `<@${interaction.user.id}>` }));
+  const v = interaction.values?.[0];
+  const st = kind === 'gw-pf' ? { filter: v, sort: other } : { filter: other, sort: v };
+  return interaction.update(peoplePayload(interaction, config, g, { page: 0, ...st }));
 }
 
 // Panel / komut: çekilişin düzenleyenini ID ile değiştirir, Discord mesajlarını yeniler
@@ -480,7 +569,7 @@ async function handleStatus(interaction, config) {
   if (statusWait.size > 2000) statusWait.clear();
   await interaction.deferReply({ ephemeral: true }).catch(() => null);
   const res = await evaluate({ client: interaction.client, config, g, userId: uid });
-  const lines = res.results.map(x => `${x.ok ? '✅' : '❌'} ${x.label}${x.need ? ` (${x.cur}/${x.need})` : ''}`);
+  const lines = res.results.map(reqLine);
   const e = new EmbedBuilder().setColor(res.ok ? config.colors.success : config.colors.warning).setTitle(baseMsg(config, 'gwStatusTitle').slice(0, 256))
     .setDescription(lines.join('\n').slice(0, 4000)).setFooter({ text: `ID: ${g.id} • ${config.brandName}` });
   return interaction.editReply({ embeds: [e], components: [], content: '', allowedMentions: { parse: [] } });
@@ -693,4 +782,4 @@ const view = g => ({
   winners: g.winners.map(id => ({ id, tag: g.winnerTags?.[id] || id, claimed: Boolean(g.claims?.[id]), disq: g.checks?.[id]?.ok === false, failed: g.checks?.[id]?.failed || [] })),
 });
 
-module.exports = { parseDuration, parseStart, cleanReq, hasReq, list, running, get, start, finish, reroll, cancel, remove, handleJoin, handleStatus, handleInfo, handlePeople, setHost, handleClaim, handleReroll, runCommand, startGiveawayWatcher, view, detail, override, checkUser, trackMessage, voiceUpdate, onMemberJoin, onMemberLeave, flush };
+module.exports = { parseDuration, parseStart, cleanReq, hasReq, list, running, get, start, finish, reroll, cancel, remove, handleJoin, handleStatus, handleInfo, handlePeople, handlePeopleSelect, setHost, handleClaim, handleReroll, runCommand, startGiveawayWatcher, view, detail, override, checkUser, trackMessage, voiceUpdate, onMemberJoin, onMemberLeave, flush };

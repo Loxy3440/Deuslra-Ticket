@@ -243,6 +243,19 @@ const handlers = {
     if (res.error) throw new ApiError(400, res.error);
     return { ok: true, message: 'Çekiliş başlatıldı.', url: res.url };
   },
+  // Açılış mesajını panelden bir kanalda dene (örnek değişkenlerle)
+  'POST openmessages/test': async (client, body) => {
+    const cfg = readConfig(); const guild = getGuild(client);
+    const channel = guild.channels.cache.get(String(body.channelId || ''));
+    if (!channel?.isTextBased?.() || !channel.send) throw new ApiError(400, 'Önce deneme mesajının gideceği bir yazı kanalı seç.');
+    let m; try { m = require('./config').cleanOpenMessages([{ ...body.message, enabled: true, delaySeconds: 0, pin: false }], 'Deneme')[0]; } catch (e) { throw new ApiError(400, e.message); }
+    const button = cfg.buttons.find(b => b.id === body.buttonId) || cfg.buttons[0];
+    const V = require('./variables').ticketVars(cfg, { channel, guild, user: client.user, button, number: 1, extra: { opened: '<t:' + Math.floor(Date.now() / 1000) + ':R>' } });
+    const payload = require('./openMessages').buildOpenMessage(cfg, m, V, { ownerId: client.user.id, staffRoleIds: [] });
+    if (!payload) throw new ApiError(400, 'Bu mesaj boş: gönderilecek yazı, embed ya da resim yok.');
+    await channel.send(payload).catch(e => { throw new ApiError(400, `Gönderilemedi: ${e.message}`); });
+    return { ok: true, message: `Deneme mesajı #${channel.name} kanalına gönderildi.` };
+  },
   'POST giveaways/host': async (client, body) => { const r = await gw.setHost({ client, config: readConfig(), id: String(body.id || ''), hostId: body.hostId }); if (r.error) throw new ApiError(400, r.error); return { ok: true, message: 'Düzenleyen değiştirildi, Discord mesajları güncellendi.' }; },
   'POST giveaways/detail': async (client, body) => { const d = gw.detail({ client, id: String(body.id || '') }); if (!d) throw new ApiError(404, 'Çekiliş bulunamadı.'); return d; },
   'POST giveaways/check': async (client, body) => { const r = await gw.checkUser({ client, config: readConfig(), id: String(body.id || ''), userId: String(body.userId || '').replace(/\D/g, '') }); if (r.error) throw new ApiError(400, r.error); return r; },

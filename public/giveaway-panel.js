@@ -305,10 +305,69 @@ function gwSettingsPane() {
         field('Görünüm', (() => { const sel = h('select', {}, [['cards', 'Kartlar (ızgara)'], ['list', 'Liste (tek sütun)']].map(([v, l]) => h('option', { value: v }, l))); sel.value = g.site.layout; sel.addEventListener('change', () => { g.site.layout = sel.value; dirty(); }); return sel; })()))));
 }
 
+/* ---------- 🔘 Butonlar (emoji / renk / gösterme) ---------- */
+const GW_BTN_ROWS = [
+  ['Katıl', 'Çalışan çekiliş mesajında', 'gwJoinBtn', 'gwEmojiJoin', 'gwColorJoin', null],
+  ['Şartlarım', 'Çalışan çekilişte (sadece şartlı çekilişlerde çıkar)', 'gwStatusBtn', 'gwEmojiStatus', 'gwColorStatus', 'gwShowStatus'],
+  ['Detaylar', 'Çalışan çekiliş ve sonuç mesajında', 'gwInfoBtn', 'gwEmojiInfo', 'gwColorInfo', 'gwShowInfo'],
+  ['Katılımcılar', 'Çalışan çekiliş mesajında', 'gwPeopleBtn', 'gwEmojiPeople', 'gwColorPeople', 'gwShowPeople'],
+  ['Ödülünü Al', 'Sonuç mesajında (kazananlar)', 'gwClaimBtn', 'gwEmojiClaim', 'gwColorClaim', null],
+  ['Tekrar Çek', 'Sonuç mesajında (yetkililer)', 'gwRerollBtn', 'gwEmojiReroll', 'gwColorReroll', null],
+  ['Yenile', 'Detaylar ve Katılımcılar penceresinde', 'gwRefreshBtn', 'gwEmojiRefresh', 'gwColorRefresh', null],
+  ['Çekiliş mesajı (link)', 'Detaylar penceresinde, çekiliş mesajına götürür (rengi Discord belirler)', 'gwJumpBtn', 'gwEmojiJump', null, null],
+];
+const GW_COLORS = { primary: 'Mavi', secondary: 'Gri', success: 'Yeşil', danger: 'Kırmızı' };
+const gwEmojiOk = v => { const t = String(v || '').trim(); return !t || /^<a?:\w{2,32}:\d{15,25}>$/.test(t) || /^[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}][\p{Extended_Pictographic}\u{FE0F}\u{200D}\u{1F3FB}-\u{1F3FF}]*$/u.test(t); };
+function gwButtonsPane() {
+  const defs = Object.fromEntries(schema.messages.filter(d => d.key.startsWith('gw')).map(d => [d.key, d.def]));
+  const val = k => (cfg.messages[k] && String(cfg.messages[k]).trim()) || defs[k] || '';
+  const prevBox = h('div', { class: 'dc' });
+  const chip = (label, emoji, color) => h('span', { class: `dc-btn ${color || 'secondary'}` }, `${emoji ? `${emoji} ` : ''}${label}`.trim());
+  const drawPrev = () => {
+    const on = k => !k || !/^(hay[ıi]r|no|false|0|kapal[ıi]|off)$/i.test(val(k).trim());
+    const b = (i, forceShow) => { const r = GW_BTN_ROWS[i]; if (!forceShow && !on(r[5])) return null; return chip(val(r[2]), gwEmojiOk(val(r[3])) ? val(r[3]) : '', r[4] ? val(r[4]) : 'secondary'); };
+    const row = (...items) => h('div', { style: 'margin:6px 0 12px;display:flex;gap:6px;flex-wrap:wrap' }, items.filter(Boolean));
+    const nav = k => h('span', { class: `dc-btn ${val('gwColorNav')}` }, gwEmojiOk(val(`gwEmoji${k}`)) && val(`gwEmoji${k}`) ? val(`gwEmoji${k}`) : '•');
+    prevBox.replaceChildren(
+      h('p', { class: 'hint' }, 'Çalışan çekiliş mesajı'), row(b(0), b(1), b(2), b(3)),
+      h('p', { class: 'hint' }, 'Sonuç mesajı'), row(b(4), b(5), b(2)),
+      h('p', { class: 'hint' }, 'Detaylar penceresi'), row(b(6), b(3), chip(val('gwJumpBtn'), gwEmojiOk(val('gwEmojiJump')) ? val('gwEmojiJump') : '', 'secondary')),
+      h('p', { class: 'hint' }, 'Katılımcılar penceresi (sayfa butonları)'), row(nav('First'), nav('Prev'), h('span', { class: 'dc-btn secondary' }, '1 / 4'), nav('Next'), nav('Last')));
+  };
+  const rowEl = ([name, where, lk, ek, ck, sk]) => {
+    const lab = h('input', { type: 'text', maxLength: 80 }); lab.value = cfg.messages[lk] || defs[lk] || ''; lab.addEventListener('input', () => { cfg.messages[lk] = lab.value; dirty(); drawPrev(); });
+    const emo = h('input', { type: 'text', maxLength: 64, placeholder: '🎉 veya <:ad:123456789012345678>' }); emo.value = cfg.messages[ek] ?? defs[ek] ?? '';
+    const warn = h('div', { class: 'hint bad-t', style: 'display:none' }, 'Geçersiz emoji: normal bir emoji ya da <:ad:123456789012345678> biçiminde özel emoji yaz.');
+    emo.addEventListener('input', () => { cfg.messages[ek] = emo.value; warn.style.display = gwEmojiOk(emo.value) ? 'none' : ''; dirty(); drawPrev(); });
+    const colorBox = h('div', { class: 'seg' });
+    const drawColors = () => colorBox.replaceChildren(...Object.entries(GW_COLORS).map(([c, l]) => h('button', { type: 'button', class: val(ck) === c ? 'on' : '', onclick: () => { cfg.messages[ck] = c; dirty(); drawColors(); drawPrev(); } }, l)));
+    if (ck) drawColors();
+    const show = sk ? (() => { const c = h('input', { type: 'checkbox' }); c.checked = !/^(hay[ıi]r|no|false|0|kapal[ıi]|off)$/i.test(val(sk)); c.addEventListener('change', () => { cfg.messages[sk] = c.checked ? 'evet' : 'hayır'; dirty(); drawPrev(); }); return h('label', { class: 'chk', style: 'margin:0' }, c, 'Göster'); })() : null;
+    const reset = h('button', { class: 'btn ghost sm', onclick: () => { [lk, ek, ck, sk].filter(Boolean).forEach(k => { cfg.messages[k] = defs[k]; }); lab.value = defs[lk]; emo.value = defs[ek]; warn.style.display = 'none'; if (ck) drawColors(); drawPrev(); dirty(); } }, 'Varsayılan');
+    return h('div', { class: 'bcard' }, h('div', { class: 'bhead' }, h('div', {}, h('b', {}, name), h('div', { class: 'muted sm' }, where)), h('div', { class: 'acts' }, show, reset)),
+      h('div', { class: 'grid2' }, field('Yazı', lab, 'Boş bırakırsan varsayılan yazı kullanılır. Sadece emoji istiyorsan yazıyı kısa tut.'), field('Emoji', emo, 'Normal emoji ya da sunucu emojisi: <:ad:123456789012345678> (Discord\'da emojinin önüne \\ koyup gönder, kodu görürsün).'),
+        ...(ck ? [field('Renk', colorBox, 'Discord butonlarında sadece bu 4 renk var.')] : [])), warn);
+  };
+  // sayfa butonları
+  const navRow = () => {
+    const wrap = h('div', { class: 'grid2' }, ...['First', 'Prev', 'Next', 'Last'].map(k => { const e = h('input', { type: 'text', maxLength: 64 }); e.value = cfg.messages[`gwEmoji${k}`] ?? defs[`gwEmoji${k}`] ?? ''; e.addEventListener('input', () => { cfg.messages[`gwEmoji${k}`] = e.value; dirty(); drawPrev(); }); return field({ First: 'İlk sayfa', Prev: 'Önceki sayfa', Next: 'Sonraki sayfa', Last: 'Son sayfa' }[k] + ' emojisi', e); }));
+    const col = h('div', { class: 'seg' }); const dc = () => col.replaceChildren(...Object.entries(GW_COLORS).map(([c, l]) => h('button', { type: 'button', class: val('gwColorNav') === c ? 'on' : '', onclick: () => { cfg.messages.gwColorNav = c; dirty(); dc(); drawPrev(); } }, l))); dc();
+    return h('div', { class: 'bcard' }, h('div', { class: 'bhead' }, h('div', {}, h('b', {}, 'Sayfa butonları'), h('div', { class: 'muted sm' }, 'Katılımcılar penceresinde ⏮ ◀ ▶ ⏭'))), wrap, field('Renk', col));
+  };
+  drawPrev();
+  return h('div', { class: 'pane', id: 'pane-gwbuttons' },
+    h('div', { class: 'card' }, h('h2', {}, 'Çekiliş butonları'),
+      h('p', { class: 'hint', style: 'margin-bottom:10px' }, 'Çekiliş mesajlarındaki bütün butonların yazısını, emojisini ve rengini buradan değiştir; Şartlarım, Detaylar ve Katılımcılar\'ı tamamen gizleyebilirsin. Değişiklikler "Ayarları kaydet"ten sonra yeni gönderilen çekiliş mesajlarında geçerli olur; çalışan çekilişlerin butonları bir sonraki güncellemede (katılım / bitiş) yenilenir. Ticket butonları ise Destek > Talep butonları sekmesinde.'),
+      h('div', { class: 'om-prev' }, prevBox)),
+    ...GW_BTN_ROWS.map(rowEl), navRow());
+}
+
 /* ---------- 💬 Çekiliş mesajları (+ canlı önizleme) ---------- */
 function gwMessagesPane() {
-  const defs = schema.messages.filter(d => d.key.startsWith('gw'));
-  const val = k => (cfg.messages[k] && cfg.messages[k].trim()) || defs.find(d => d.key === k)?.def || '';
+  const BTN_KEYS = new Set([...GW_BTN_ROWS.flatMap(r => [r[2], r[3], r[4], r[5]]), 'gwEmojiFirst', 'gwEmojiPrev', 'gwEmojiNext', 'gwEmojiLast', 'gwColorNav'].filter(Boolean));
+  const allDefs = schema.messages.filter(d => d.key.startsWith('gw'));
+  const defs = allDefs.filter(d => !BTN_KEYS.has(d.key));
+  const val = k => (cfg.messages[k] && String(cfg.messages[k]).trim()) || allDefs.find(d => d.key === k)?.def || '';
   const reqSample = () => [val('gwReqRole').replace('{roles}', '@VIP'), val('gwReqTag'), val('gwReqVoice').replace('{n}', '30'), val('gwReqMessages').replace('{n}', '50'), val('gwReqInvites').replace('{n}', '2')];
   // Sunucudaki şablon sistemiyle aynı mantık, örnek değerlerle
   const vars = () => {
@@ -316,12 +375,12 @@ function gwMessagesPane() {
     const fill = (t, v) => String(t).replace(/\{(\w+)\}/g, (m, k) => (k.toLowerCase() in v ? v[k.toLowerCase()] : m));
     const v = { prize: '1M OwO Cash', winnercount: '2', winners: '• @ali\n• @veli', entries: '37', participants: '@ali @veli @ayse +34', host: '@yetkili', id: 'ab12cd', brand: cfg.brandName || 'Marka',
       ends: 'yarın 18:00', endsfull: '26 Kasım 18:00', started: '2 saat önce', role: '@VIP', channel: '#cekilis', requirements: rs.map(x => `• ${x}`).join('\n'), claimbtn: val('gwClaimBtn'), note: val('gwResultReqNote'), user: '@kullanıcı', missing: 'Davet (0/2)' };
-    Object.assign(v, { hostname: 'Loxy', state: val('gwStateRunning'), you: val('gwYouIn'), myrequirements: rs.map((x, i) => `${i % 2 ? '❌' : '✅'} ${x}`).join('\n'), claimhours: '72' });
+    Object.assign(v, { servername: 'Sunucum', servericon: '', progressline: fill(val('gwProgRunning'), { timebar: '▰▰▰▰▰▰▱▱▱▱▱▱', percent: '50', ends: 'yarın 18:00', endsfull: '26 Kasım 18:00' }), timebar: '▰▰▰▰▰▰▱▱▱▱▱▱', percent: '50', meeting: '12 / 37 (%32)', meetingcount: '12', top: '🥇 @ali · ✉️ 54 · 🔊 40 dk · 📨 3\n🥈 @veli · ✉️ 41 · 🔊 22 dk · 📨 1', hostname: 'Loxy', state: val('gwStateRunning'), you: val('gwYouIn'), myrequirements: rs.map((x, i) => `${i % 2 ? '❌' : '✅'} ${x}`).join('\n'), claimhours: '72' });
     v.status = `${fill(val('gwStatusOk'), { ...v, user: '@ali' })}\n${fill(val('gwStatusFail'), { ...v, user: '@veli', missing: `${rs[4]} (0/2)` })}`;
     return { v, fill };
   };
   const BASE = { prize: ['gwFieldPrize', 'gwValPrize', 1], winners: ['gwFieldWinners', 'gwValWinners', 1], ends: ['gwFieldEnds', 'gwValEnds', 1], host: ['gwFieldHost', 'gwValHost', 1], entries: ['gwFieldEntries', 'gwValEntries', 1], role: ['gwFieldRole', 'gwValRole', 1], reqs: ['gwFieldReqs', 'gwValReqs', 0], status: ['gwFieldStatus', 'gwValStatus', 0] };
-  const INFO = { ...BASE, state: ['gwFieldState', 'gwValState', 1], started: ['gwFieldStarted', 'gwValStarted', 1], you: ['gwFieldYou', 'gwValYou', 1], myreqs: ['gwFieldMyReqs', 'gwValMyReqs', 0], claim: ['gwFieldClaim', 'gwValClaim', 1], x1: ['gwInfoX1Name', 'gwInfoX1Val', 0], x2: ['gwInfoX2Name', 'gwInfoX2Val', 0] };
+  const INFO = { ...BASE, state: ['gwFieldState', 'gwValState', 1], started: ['gwFieldStarted', 'gwValStarted', 1], you: ['gwFieldYou', 'gwValYou', 1], myreqs: ['gwFieldMyReqs', 'gwValMyReqs', 0], meeting: ['gwFieldMeeting', 'gwValMeeting', 1], top: ['gwFieldTop', 'gwValTop', 0], claim: ['gwFieldClaim', 'gwValClaim', 1], x1: ['gwInfoX1Name', 'gwInfoX1Val', 0], x2: ['gwInfoX2Name', 'gwInfoX2Val', 0] };
   const RUN = { ...BASE, x1: ['gwRunX1Name', 'gwRunX1Val', 0], x2: ['gwRunX2Name', 'gwRunX2Val', 0] };
   const RES = { ...BASE, reqs: ['gwFieldReqs', 'gwValReqsRes', 0], x1: ['gwResX1Name', 'gwResX1Val', 0], x2: ['gwResX2Name', 'gwResX2Val', 0] };
   const prev = h('div', {});
@@ -345,18 +404,25 @@ function gwMessagesPane() {
         o.footer && f(o.footer).trim() ? h('div', { class: 'dc-foot' }, f(o.footer)) : null);
       return el;
     };
-    const btn = (t, c) => h('span', { class: `dc-btn ${c || ''}` }, t);
+    const btn = (t, c) => h('span', { class: `dc-btn ${({ p: 'primary', g: 'success' })[c] || c || 'secondary'}` }, t.trim());
     const run = { title: 'gwRunTitle', descKey: 'gwRunDesc', color: 'gwRunColor', author: 'gwRunAuthor', thumb: 'gwRunThumb', image: 'gwRunImage', footer: 'gwRunFooter', order: 'gwRunOrder', fields: RUN, def: '#5865f2' };
     prev.replaceChildren(h('div', { class: 'dc' },
       h('p', { class: 'hint' }, '1) Çalışan çekiliş'), emb(run),
-      h('div', { style: 'margin:6px 0 14px' }, btn(`🎉 ${val('gwJoinBtn')}`, 'p'), ' ', btn(`📋 ${val('gwStatusBtn')}`), ' ', btn(`🔎 ${val('gwInfoBtn')}`), ' ', btn(`👥 ${val('gwPeopleBtn')}`)),
-      h('p', { class: 'hint' }, '1b) "Detaylar" butonuna basınca (sadece basan kişi görür)'), emb({ ...run, title: 'gwInfoTitle', descKey: 'gwInfoDesc', color: 'gwInfoColor', footer: 'gwInfoFooter', order: 'gwInfoOrder', fields: INFO, def: '#5865f2' }),
-      h('div', { style: 'margin:6px 0 14px' }, btn(`🔄 ${val('gwRefreshBtn')}`), ' ', btn(`👥 ${val('gwPeopleBtn')}`), ' ', btn(`🔗 ${val('gwJumpBtn')}`)),
+      h('div', { style: 'margin:6px 0 14px' }, btn(`${val('gwEmojiJoin')} ${val('gwJoinBtn')}`, val('gwColorJoin')), ' ', btn(`${val('gwEmojiStatus')} ${val('gwStatusBtn')}`, val('gwColorStatus')), ' ', btn(`${val('gwEmojiInfo')} ${val('gwInfoBtn')}`, val('gwColorInfo')), ' ', btn(`${val('gwEmojiPeople')} ${val('gwPeopleBtn')}`, val('gwColorPeople'))),
+      h('p', { class: 'hint' }, '1b) "Detaylar" butonuna basınca (sadece basan kişi görür)'), emb({ ...run, title: 'gwInfoTitle', descKey: 'gwInfoDesc', color: 'gwInfoColor', author: 'gwInfoAuthor', thumb: 'gwInfoThumb', image: 'gwInfoImage', footer: 'gwInfoFooter', order: 'gwInfoOrder', fields: INFO, def: '#5865f2' }),
+      h('div', { style: 'margin:6px 0 14px' }, btn(`${val('gwEmojiRefresh')} ${val('gwRefreshBtn')}`, val('gwColorRefresh')), ' ', btn(`${val('gwEmojiPeople')} ${val('gwPeopleBtn')}`, val('gwColorPeople')), ' ', btn(`${val('gwEmojiJump')} ${val('gwJumpBtn')}`, 'secondary')),
       h('p', { class: 'hint' }, '2) Biten çekiliş (ilk mesaj)'), emb({ ...run, title: 'gwEndTitle', descKey: 'gwEndDesc', color: 'gwEndColor', def: '#f0b232' }),
+      h('p', { class: 'hint', style: 'margin-top:14px' }, '1c) "Katılımcılar" butonuna basınca (filtre + sıralama + sayfa butonları)'),
+      (() => { const pv = { ...v, meetingline: f('gwPeopleMeeting').replace('{meetingCount}', '12').replace('{meetingBar}', '▰▰▰▱▱▱▱▱▱▱').replace('{meetingPercent}', '32'), filter: val('gwFilterAll'), sort: val('gwSortJoin') };
+        const line = (n, user, mark, prog) => fill(val('gwPeopleLine'), { n, user, mark, progress: prog }).split('\n').filter(x => x.trim()).join('\n');
+        return h('div', { class: 'dc-emb', style: 'border-left-color:#5865f2' }, h('b', {}, fill(val('gwPeopleTitle'), v)), h('div', { class: 'dc-desc' }, `${fill(val('gwPeopleHead'), pv)}\n\n${[line('1', '@ali', val('gwMarkWinner'), '✉️ 54/50 · 🔊 40/30 dk · 📨 2/2'), line('2', '@veli', val('gwMarkOk'), '✉️ 51/50 · 🔊 31/30 dk · 📨 2/2'), line('3', '@ayse', val('gwMarkTodo'), '✉️ 12/50 · 🔊 5/30 dk · 📨 0/2')].join('\n')}`),
+          h('div', { class: 'dc-foot' }, fill(val('gwPeopleFooter'), { page: '1', pages: '4' }))); })(),
+      h('div', { style: 'margin:6px 0 4px' }, ['gwEmojiFirst', 'gwEmojiPrev', 'gwEmojiNext', 'gwEmojiLast'].map(k => h('span', { class: `dc-btn ${val('gwColorNav')}`, style: 'margin-right:4px' }, val(k) || '•')), h('span', { class: 'dc-btn secondary', style: 'margin-left:6px' }, '1 / 4')),
+      h('div', { style: 'margin:0 0 14px' }, h('span', { class: 'dc-btn secondary' }, `▾ ${val('gwFilterPh')}`), ' ', h('span', { class: 'dc-btn secondary' }, `▾ ${val('gwSortPh')}`)),
       h('p', { class: 'hint', style: 'margin-top:14px' }, '3) İptal edilen çekiliş'), emb({ ...run, title: 'gwCancelTitle', descKey: 'gwCancelDesc', color: 'gwCancelColor', def: '#da373c' }),
       h('p', { class: 'hint', style: 'margin-top:14px' }, '4) Sonuç / tekrar çek mesajı (altta şart durumu)'),
       emb({ title: 'gwResTitle', descKey: 'gwResBody', color: 'gwResColor', author: 'gwResAuthor', thumb: 'gwResThumb', image: 'gwResImage', footer: 'gwResFooter', order: 'gwResOrder', fields: RES, def: '#248046' }),
-      h('div', { style: 'margin:6px 0 14px' }, btn(`🎁 ${val('gwClaimBtn')}`, 'g'), ' ', btn(`🔔 ${val('gwRerollBtn')}`), ' ', btn(`🔎 ${val('gwInfoBtn')}`)),
+      h('div', { style: 'margin:6px 0 14px' }, btn(`${val('gwEmojiClaim')} ${val('gwClaimBtn')}`, val('gwColorClaim')), ' ', btn(`${val('gwEmojiReroll')} ${val('gwRerollBtn')}`, val('gwColorReroll')), ' ', btn(`${val('gwEmojiInfo')} ${val('gwInfoBtn')}`, val('gwColorInfo'))),
       h('p', { class: 'hint' }, '5) Şartı yapmayan kazanan "Ödülünü Al"a basınca'), h('div', { class: 'dc-eph' }, f('gwReqFailed'))));
   };
   draw();
@@ -440,6 +506,7 @@ function gwTabs() {
     ['gwlist', '📋', 'Çekilişler', gwListPane],
     ['gwstats', '📈', 'İstatistikler', gwStatsPane],
     ['gwsettings', '⚙️', 'Ayarlar', gwSettingsPane],
+    ['gwbuttons', '🔘', 'Butonlar', gwButtonsPane],
     ['gwmessages', '💬', 'Çekiliş mesajları', gwMessagesPane],
     ['gwsite', '🌐', 'Site yazıları', gwSitePane],
     ['gwguide', '📖', 'Rehber', gwGuidePane],

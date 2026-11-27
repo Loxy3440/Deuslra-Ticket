@@ -35,6 +35,7 @@ async function handleButton(interaction, config) {
 
 // Açılır listeden kategori seçildiğinde: buton tıklamasıyla aynı akış (form varsa modal, yoksa direkt ticket).
 async function handleSelect(interaction, config) {
+  if (interaction.customId.startsWith('gw-pf:') || interaction.customId.startsWith('gw-ps:')) return gw.handlePeopleSelect(interaction, config);
   if (interaction.customId.startsWith('ticket-pick:')) { const [, a, d] = interaction.customId.split(':'); return cb.handlePick(interaction, config, a, d); }
   if (interaction.customId.startsWith('ticket-custom-move:')) return cb.handleCustomMove(interaction, config, interaction.customId.slice('ticket-custom-move:'.length));
   if (interaction.customId.startsWith('ticket-custom-prio:')) return cb.handleCustomPriority(interaction, config, interaction.customId.slice('ticket-custom-prio:'.length));

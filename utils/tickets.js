@@ -194,6 +194,11 @@ async function openTicket({ guild, user, config, button, answers = [], bypassLim
     allowedMentions: { users: [user.id], roles: ping },
   });
 
+  // Ayarlanan ek açılış mesajları (genel + kategoriye özel): karşılama mesajından hemen sonra, sırayla
+  const om = require('./openMessages');
+  const runOpenMessages = () => om.sendOpenMessages({ channel, config, button, V, ownerId: user.id, staffRoleIds: roleIds });
+  if (om.hasDelay(config, button)) runOpenMessages().catch(() => null); else await runOpenMessages().catch(() => null);
+
   const ws = workStatus(config);
   if (ws.enabled && !ws.open) {
     await channel.send({ embeds: [new EmbedBuilder().setColor(config.colors.warning).setDescription(msg(config, 'outsideHours', { ...V, workhours: ws.summary }))] }).catch(() => null);

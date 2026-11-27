@@ -770,7 +770,7 @@ function showApp() {
   const sections = {
     destek: {
       ico: '🎫', name: 'Destek', first: 'overview',
-      tabs: [['overview', '📊', 'Genel bakış', overviewPane], ['general', '⚙️', 'Ayarlar', generalPane], ['look', '🎨', 'Panel görünümü', appearancePane], ['buttons', '🎫', 'Kategoriler & formlar', buttonsPane],
+      tabs: [['overview', '📊', 'Genel bakış', overviewPane], ['general', '⚙️', 'Ayarlar', generalPane], ['look', '🎨', 'Panel görünümü', appearancePane], ['buttons', '🎫', 'Kategoriler & formlar', buttonsPane], ['openmsg', '💌', 'Açılış mesajları', openMessagesPane],
         ['stats', '📈', 'İstatistikler', statsPane], ['ticketbtn', '🔘', 'Talep butonları', ticketButtonsPane], ['canned', '📋', 'Hazır cevaplar', cannedPane], ['commands', '⌨️', 'Komutlar', commandsPane],
         ['messages', '💬', 'Bot mesajları', () => textsPane('messages', 'Bot mesajları', 'Botun ticket açarken, kapatırken, silerken, DM\'de ve logda yazdığı bütün yazılar. {süslü} kısımlar otomatik doldurulur; her yazıda yukarıdaki tablodaki değişkenleri kullanabilirsin. Kutuyu boş bırakırsan varsayılan yazı kullanılır. (Çekiliş yazıları Çekiliş bölümünde.)', notGw(schema.messages), cfg.messages)],
         ['site', '🌐', 'Site yazıları', () => textsPane('site', 'Site yazıları', 'Ana sayfadaki bütün başlıklar, açıklamalar ve düğme yazıları. {server} {members} {open} {closed} {total} {brand} {bot} {ping} {date} {time} {day} {year} {greeting} değişkenlerini kullanabilirsin. (Çekiliş başlıkları Çekiliş bölümünde.)', notGw(schema.site), cfg.site)]],
